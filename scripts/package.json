@@ -1,0 +1,23 @@
+{
+  "name": "dmc-scripts",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "DMC Kilo Project build/sync toolchain (replaces PowerShell scripts)",
+  "scripts": {
+    "init": "tsx src/cli.ts init",
+    "apply": "tsx src/cli.ts apply",
+    "sync": "tsx src/cli.ts sync",
+    "scan": "tsx src/cli.ts scan-markers",
+    "diff-markers": "tsx src/cli.ts diff-markers",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "commander": "^12.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}

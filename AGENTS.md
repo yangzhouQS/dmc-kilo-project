@@ -33,7 +33,8 @@
 
 ## 上游同步
 
-- 同步脚本：`scripts/sync-upstream.ps1`
+- 同步脚本：`scripts/src/cli.ts sync`（`npx tsx` 运行，详见 `scripts/README`）
+- 标记扫描：`npx tsx src/cli.ts scan-markers`（校验 `custom_change` 标记完整性）
 - 同步点记录：`.upstream-sync`（git commit hash）
 - 保护文件（上述 5 个）sync 时显示 diff，需手动确认
 - 安全文件（其余所有文件）sync 时自动覆盖

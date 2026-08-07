@@ -17,3 +17,7 @@ Desktop.ini
 
 # Sync state
 .upstream-sync.bak
+
+# Node (scripts toolchain)
+scripts/node_modules/
+scripts/dist/
