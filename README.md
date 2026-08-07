@@ -94,3 +94,33 @@ Select-String -Path "packages\kilo-jetbrains\**\*.*" -Pattern "custom_change" -R
 ## 技术调研
 
 详见 `docs/` 目录下的分析文档。
+
+
+## 本地环境搭建
+
+### gradle 下载地址
+https://mirrors.cloud.tencent.com/gradle/
+
+
+
+### 启动项目指令
+
+
+``` 
+模式
+命令
+说明
+单进程（推荐开发用）
+.\gradlew.bat runIde
+所有模块加载在一个进程，最简单
+分离模式
+.\gradlew.bat runIdeSplitMode
+backend + frontend 分进程，模拟远程开发
+仅后端
+.\gradlew.bat runIdeBackend
+调试 CLI 进程管理
+仅前端
+.\gradlew.bat runIdeFrontend
+调试 UI
+
+```
