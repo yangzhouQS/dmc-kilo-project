@@ -4,6 +4,7 @@ import ai.kilocode.client.app.KiloSessionService
 import ai.kilocode.client.app.KiloWorkspaceService
 import ai.kilocode.client.app.Workspace
 import ai.kilocode.client.session.history.HistoryController
+import ai.kilocode.rpc.dto.PromptPartDto // custom_change
 import ai.kilocode.client.session.history.HistoryPanel
 import ai.kilocode.client.telemetry.Telemetry
 import ai.kilocode.client.util.UiTimer
@@ -108,6 +109,16 @@ class SessionSidePanelManager(
     override fun focusPrompt() {
         focus(current?.promptFocusedComponent)
     }
+
+    override fun activeSessionId(): String? = current?.id // custom_change
+
+    // custom_change start
+    override fun sendPrompt(text: String, parts: List<PromptPartDto>): Boolean {
+        val ui = current ?: return false
+        ui.prompt(text, parts)
+        return true
+    }
+    // custom_change end
 
     private fun create(ref: SessionRef): SessionUi {
         val workspace = when (ref) {

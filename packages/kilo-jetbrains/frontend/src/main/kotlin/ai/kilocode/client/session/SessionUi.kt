@@ -246,6 +246,8 @@ class SessionUi(
 
     internal val id: String? get() = controller.id
 
+    internal fun prompt(text: String, parts: List<PromptPartDto> = emptyList()) = controller.prompt(text, parts) // custom_change
+
     internal val cacheKey: String? get() = controller.refKey
 
     internal fun currentStyle() = style

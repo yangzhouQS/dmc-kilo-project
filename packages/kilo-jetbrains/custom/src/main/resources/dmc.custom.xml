@@ -37,6 +37,7 @@
             text="Send File to Kilo"
             description="Send the current file to the current Kilo conversation">
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
         </action>
     </actions>
 </idea-plugin>

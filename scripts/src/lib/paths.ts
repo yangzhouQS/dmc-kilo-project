@@ -32,6 +32,9 @@ export const PROTECTED_FILES: readonly string[] = [
   'build.gradle.kts',
   'gradle.properties',
   'package.json',
+  'frontend/src/main/kotlin/ai/kilocode/client/session/SessionManager.kt',
+  'frontend/src/main/kotlin/ai/kilocode/client/session/SessionSidePanelManager.kt',
+  'frontend/src/main/kotlin/ai/kilocode/client/session/SessionUi.kt',
 ] as const;
 
 /**

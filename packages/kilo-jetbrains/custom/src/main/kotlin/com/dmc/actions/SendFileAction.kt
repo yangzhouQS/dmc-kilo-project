@@ -1,6 +1,8 @@
 package com.dmc.actions
 
 import com.dmc.bridge.DmcBridgeService
+import com.intellij.notification.Notification
+import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
@@ -11,20 +13,13 @@ import ai.kilocode.rpc.dto.PromptPartDto
 
 private val LOG = logger<SendFileAction>()
 
-/**
- * Action: right-click in editor -> "Send File to Kilo".
- *
- * Sends the current file as a [PromptPartDto] file reference to the
- * active Kilo session. The CLI will read the file from disk.
- */
+private const val NOTIFICATION_GROUP = "Kilo Code"
+
 class SendFileAction : AnAction() {
 
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
-        val vFile = e.getData(CommonDataKeys.VIRTUAL_FILE) ?: run {
-            LOG.warn("No virtual file")
-            return
-        }
+        val vFile = e.getData(CommonDataKeys.VIRTUAL_FILE) ?: return
 
         val relativePath = toRelativePath(project, vFile)
 
@@ -36,12 +31,13 @@ class SendFileAction : AnAction() {
         )
 
         val bridge = DmcBridgeService.getInstance()
-        if (!bridge.isReady) {
-            LOG.warn("Kilo backend not connected")
-            return
-        }
+        val sent = bridge.sendToSession(project, "Review this file:", listOf(part))
 
-        bridge.sendToSession("Review this file:", listOf(part))
+        if (sent) {
+            notify(project, "File sent to Kilo", NotificationType.INFORMATION)
+        } else {
+            notify(project, "No active Kilo session. Open the Kilo tool window first.", NotificationType.WARNING)
+        }
     }
 
     override fun update(e: AnActionEvent) {
@@ -52,5 +48,9 @@ class SendFileAction : AnAction() {
     private fun toRelativePath(project: Project, vFile: VirtualFile): String {
         val basePath = project.basePath ?: return vFile.path
         return vFile.path.removePrefix(basePath).removePrefix("/")
+    }
+
+    private fun notify(project: Project, message: String, type: NotificationType) {
+        Notification(NOTIFICATION_GROUP, message, type).notify(project)
     }
 }

@@ -11,85 +11,62 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import java.util.concurrent.TimeUnit
 
 private val LOG = logger<DmcBridgeService>()
-private val JSON = "application/json; charset=utf-8".toMediaType()
 
 /**
- * Service implementation that bridges DMC actions to the Kilo CLI session.
+ * Service that bridges DMC actions to the active Kilo Code session.
  *
- * Resolves port from [KiloBackendAppService] (public getter).
- * Password requires a minimal custom_change in backend to expose it.
- * Until that change is applied, [password] returns empty and prompts
- * will be sent without auth (works only if CLI runs unsecured).
+ * Uses [KiloBackendChatManager.prompt] (pre-authenticated HTTP) instead of
+ * raw OkHttp + password reflection. Session ID resolved via [DmcSessionResolver].
  */
 class DmcBridgeService(
     private val scope: CoroutineScope,
 ) : DmcBridge {
 
-    private val http = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .build()
-
-    override val isReady: Boolean
-        get() = app()?.port?.let { it > 0 } ?: false
-
-    override fun sendToSession(text: String, parts: List<PromptPartDto>) {
-        val app = app() ?: run {
-            LOG.warn("Backend not connected, cannot send prompt")
-            return
+    override fun sendToSession(project: Project, text: String, parts: List<PromptPartDto>): Boolean {
+        val sessionId = DmcSessionResolver.getActiveSessionId(project)
+        if (sessionId == null) {
+            LOG.warn("No active Kilo session found")
+            return false
         }
-        if (app.port <= 0) {
-            LOG.warn("Backend port not available")
-            return
+
+        val app = app()
+        if (app == null || app.port <= 0) {
+            LOG.warn("Kilo backend not connected")
+            return false
         }
+
+        val dir = project.basePath ?: ""
 
         scope.launch {
-            sendPromptInternal(app.port, resolvePassword(app), text, parts)
+            sendPrompt(app, sessionId, dir, text, parts)
         }
+        return true
     }
 
     @RequiresBackgroundThread
-    private suspend fun sendPromptInternal(
-        port: Int,
-        password: String,
+    private suspend fun sendPrompt(
+        app: KiloBackendAppService,
+        sessionId: String,
+        dir: String,
         text: String,
         parts: List<PromptPartDto>,
     ) {
-        val body = buildPromptJson(text, parts)
-        val url = "http://127.0.0.1:$port"
+        val allParts = buildList {
+            if (text.isNotEmpty()) {
+                add(PromptPartDto(type = "text", text = text))
+            }
+            addAll(parts)
+        }
+        val dto = PromptDto(parts = allParts)
 
         withContext(Dispatchers.IO) {
-            // TODO: resolve the active session ID from the frontend session service.
-            // For now, this sends to the most recent session. A full implementation
-            // should query KiloSessionService for the active session.
-            val sessionId = "TODO_ACTIVE_SESSION_ID"
-
-            val builder = Request.Builder()
-                .url("$url/session/$sessionId/prompt_async")
-                .post(body.toRequestBody(JSON))
-
-            if (password.isNotEmpty()) {
-                val credentials = okhttp3.Credentials.basic("kilo", password)
-                builder.header("Authorization", credentials)
-            }
-
             try {
-                http.newCall(builder.build()).execute().use { response ->
-                    if (!response.isSuccessful) {
-                        LOG.warn("prompt_async failed: HTTP ${response.code}")
-                    } else {
-                        LOG.info("prompt_async sent successfully")
-                    }
-                }
+                app.chat.prompt(sessionId, dir, dto)
+                LOG.info("Prompt sent to session $sessionId (${allParts.size} parts)")
             } catch (e: Exception) {
-                LOG.warn("prompt_async error: ${e.message}", e)
+                LOG.warn("Failed to send prompt to session $sessionId: ${e.message}", e)
             }
         }
     }
@@ -97,89 +74,8 @@ class DmcBridgeService(
     private fun app(): KiloBackendAppService? =
         ApplicationManager.getApplication().getService(KiloBackendAppService::class.java)
 
-    /**
-     * Resolve the CLI server password.
-     *
-     * [KiloBackendAppService] exposes [port] publicly but [password] is private.
-     * Apply the custom_change in KiloBackendConnectionService.kt to expose
-     * password, or use reflection as a fallback.
-     */
-    private fun resolvePassword(app: KiloBackendAppService): String {
-        // Option A: After applying custom_change, call app.password directly
-        // return app.password
-
-        // Option B: Reflection fallback (no upstream change needed)
-        return try {
-            val connField = app.javaClass.getDeclaredField("connection")
-            connField.isAccessible = true
-            val connection = connField.get(app)
-            val pwdField = connection?.javaClass?.getDeclaredField("password")
-            pwdField?.isAccessible = true
-            pwdField?.get(connection) as? String ?: ""
-        } catch (e: Exception) {
-            LOG.warn("Could not resolve password via reflection: ${e.message}")
-            ""
-        }
-    }
-
     companion object {
         fun getInstance(): DmcBridgeService =
             ApplicationManager.getApplication().getService(DmcBridgeService::class.java)
     }
-}
-
-private fun buildPromptJson(text: String, parts: List<PromptPartDto>): String {
-    val sb = StringBuilder()
-    sb.append("""{"parts":[""")
-
-    var first = true
-    if (text.isNotEmpty()) {
-        sb.append("""{"type":"text","text":""").append(escape(text)).append("}")
-        first = false
-    }
-    for (part in parts) {
-        if (!first) sb.append(",")
-        sb.append(buildPartJson(part))
-        first = false
-    }
-    sb.append("]}")
-    return sb.toString()
-}
-
-private fun buildPartJson(part: PromptPartDto): String {
-    val fields = mutableListOf("\"type\":\"${part.type}\"")
-    if (part.type == "file") {
-        part.url?.let { fields += "\"url\":${escape(it)}" }
-        part.filename?.let { fields += "\"filename\":${escape(it)}" }
-        part.mime?.let { fields += "\"mime\":${escape(it)}" }
-        part.source?.let { src ->
-            val srcFields = mutableListOf("\"type\":\"${src.type}\"")
-            src.path?.let { srcFields += "\"path\":${escape(it)}" }
-            val text = src.text
-            srcFields += "\"text\":{\"value\":${escape(text.value)},\"start\":${text.start},\"end\":${text.end}}"
-            fields += "\"source\":{${srcFields.joinToString(",")}}"
-        }
-    } else {
-        fields += "\"text\":${escape(part.text ?: "")}"
-    }
-    return "{${fields.joinToString(",")}}"
-}
-
-private fun escape(s: String): String {
-    val sb = StringBuilder("\"")
-    for (c in s) {
-        when (c) {
-            '"' -> sb.append("\\\"")
-            '\\' -> sb.append("\\\\")
-            '\n' -> sb.append("\\n")
-            '\r' -> sb.append("\\r")
-            '\t' -> sb.append("\\t")
-            else -> if (c.code < 0x20) {
-                sb.append("\\u%04x".format(c.code))
-            } else {
-                sb.append(c)
-            }
-        }
-    }
-    return sb.append("\"").toString()
 }

@@ -1,11 +1,12 @@
 package com.dmc.actions
 
 import com.dmc.bridge.DmcBridgeService
+import com.intellij.notification.Notification
+import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.diagnostic.logger
-import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import ai.kilocode.rpc.dto.PartSourceDto
@@ -14,31 +15,18 @@ import ai.kilocode.rpc.dto.PromptPartDto
 
 private val LOG = logger<SendSelectionAction>()
 
-/**
- * Action: right-click in editor -> "Send Selection to Kilo".
- *
- * Reads the current text selection, builds a [PromptPartDto] with source
- * range information, and sends it to the active Kilo session.
- */
+private const val NOTIFICATION_GROUP = "Kilo Code"
+
 class SendSelectionAction : AnAction() {
 
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
-        val editor = e.getData(CommonDataKeys.EDITOR) ?: run {
-            LOG.warn("No active editor")
-            return
-        }
-        val vFile = e.getData(CommonDataKeys.VIRTUAL_FILE) ?: run {
-            LOG.warn("No virtual file")
-            return
-        }
+        val editor = e.getData(CommonDataKeys.EDITOR) ?: return
+        val vFile = e.getData(CommonDataKeys.VIRTUAL_FILE) ?: return
 
         val selection = editor.selectionModel
         val selectedText = selection.selectedText
-        if (selectedText.isNullOrEmpty()) {
-            LOG.info("No text selected")
-            return
-        }
+        if (selectedText.isNullOrEmpty()) return
 
         val startLine = selection.selectionStartPosition?.line ?: 0
         val endLine = selection.selectionEndPosition?.line ?: 0
@@ -61,12 +49,13 @@ class SendSelectionAction : AnAction() {
         )
 
         val bridge = DmcBridgeService.getInstance()
-        if (!bridge.isReady) {
-            LOG.warn("Kilo backend not connected")
-            return
-        }
+        val sent = bridge.sendToSession(project, "Review the following code selection:", listOf(part))
 
-        bridge.sendToSession("Fix the following code:", listOf(part))
+        if (sent) {
+            notify(project, "Selection sent to Kilo", NotificationType.INFORMATION)
+        } else {
+            notify(project, "No active Kilo session. Open the Kilo tool window first.", NotificationType.WARNING)
+        }
     }
 
     override fun update(e: AnActionEvent) {
@@ -77,5 +66,9 @@ class SendSelectionAction : AnAction() {
     private fun toRelativePath(project: Project, vFile: VirtualFile): String {
         val basePath = project.basePath ?: return vFile.path
         return vFile.path.removePrefix(basePath).removePrefix("/")
+    }
+
+    private fun notify(project: Project, message: String, type: NotificationType) {
+        Notification(NOTIFICATION_GROUP, message, type).notify(project)
     }
 }
