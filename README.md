@@ -4,26 +4,34 @@
 
 ## 快速开始
 
-```powershell
+```bash
+cd scripts && npm install    # 首次安装依赖
+
 # 1. 初始化（从本地 monorepo 复制源码 + git init）
-.\scripts\init-project.ps1
+npx tsx src/cli.ts init
 
 # 2. 应用定制修改（插件 ID、custom 模块注册）
-.\scripts\apply-custom-changes.ps1
+npx tsx src/cli.ts apply
 
-# 3. 验证构建
-.\scripts\build-plugin.ps1
+# 3. 验证标记完整性
+npx tsx src/cli.ts scan-markers
+
+# 4. 验证构建
+npx tsx src/cli.ts build
 ```
 
 ## 日常操作
 
+> 以下命令均在 `scripts/` 目录下执行。
+
 | 操作 | 命令 |
 |---|---|
-| 同步上游 | `.\scripts\sync-upstream.ps1` |
-| 预览同步（不修改文件） | `.\scripts\sync-upstream.ps1 -DryRun` |
-| 构建插件 | `.\scripts\build-plugin.ps1` |
-| 类型检查 | `.\scripts\build-plugin.ps1 -Task typecheck` |
-| 运行测试 | `.\scripts\build-plugin.ps1 -Task test` |
+| 同步上游 | `npx tsx src/cli.ts sync` |
+| 预览同步（不修改文件） | `npx tsx src/cli.ts sync --dry-run` |
+| 构建插件 | `npx tsx src/cli.ts build` |
+| 类型检查 | `npx tsx src/cli.ts build typecheck` |
+| 运行测试 | `npx tsx src/cli.ts build test` |
+| 扫描 custom_change 标记 | `npx tsx src/cli.ts scan-markers` |
 
 ## 项目结构
 
@@ -49,10 +57,23 @@ dmc-kilo-project/
 │   └── ui/src/assets/icons/provider/ ← 上游同步（120 个 SVG 图标）
 │
 ├── scripts/
-│   ├── init-project.ps1              ← 初始化项目
-│   ├── sync-upstream.ps1             ← 同步上游
-│   ├── apply-custom-changes.ps1      ← 应用定制修改
-│   └── build-plugin.ps1              ← 构建插件
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── src/
+│   │   ├── cli.ts                   ← 统一 CLI 入口
+│   │   ├── commands/
+│   │   │   ├── init.ts              ← 初始化项目
+│   │   │   ├── apply.ts             ← 应用定制修改
+│   │   │   ├── sync.ts              ← 同步上游（标记感知）
+│   │   │   └── scan-markers.ts      ← 扫描标记
+│   │   └── lib/
+│   │       ├── paths.ts             ← 路径常量 + 保护文件列表
+│   │       ├── git.ts               ← git 操作封装
+│   │       ├── markers.ts           ← custom_change 标记解析
+│   │       ├── files.ts             ← 文件 I/O
+│   │       └── colors.ts            ← ANSI 着色
+│   ├── node_modules/                ← gitignore
+│   └── dist/                        ← gitignore
 │
 ├── docs/                              ← 技术调研文档
 ├── .upstream-sync                     ← 上游同步点（git commit hash）
@@ -67,23 +88,24 @@ dmc-kilo-project/
 | 类型 | 文件 | 同步行为 |
 |---|---|---|
 | **安全文件** | shared/, frontend/, backend/, build-tasks/ 等所有非定制文件 | 自动覆盖 |
-| **保护文件** | build.gradle.kts, plugin.xml, gradle.properties, package.json | 显示 diff，手动合并 |
+| **保护文件** | settings.gradle.kts, build.gradle.kts, plugin.xml, gradle.properties, package.json | 显示 diff + 标记区域，手动合并 |
 | **定制文件** | custom/ 目录 | 永不触碰 |
 
 ### 冲突解决
 
 保护文件的冲突是确定性的——保留 `custom_change` 标记区域的定制，接受上游其他改动。
 
-```powershell
-# 搜索所有定制标记
-Select-String -Path "packages\kilo-jetbrains\**\*.*" -Pattern "custom_change" -Recurse
+```bash
+# 扫描所有定制标记（在 scripts/ 目录下执行）
+npx tsx src/cli.ts scan-markers
 ```
 
 ## 构建
 
 - **构建工具**: Gradle 9.4.1 (wrapper 自动下载)
 - **JDK**: Java 21
-- **CLI**: pinned 模式，从 GitHub Release 自动下载（无需 bun/node/turbo）
+- **CLI**: pinned 模式，从 GitHub Release 自动下载（Gradle 构建不需要 bun/turbo）
+- **脚本工具链**: Node.js + tsx（仅 `scripts/` 目录，不影响 Gradle 构建）
 - **产物**: `packages/kilo-jetbrains/build/distributions/*.zip`
 
 ## CLI 版本
