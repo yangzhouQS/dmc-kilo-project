@@ -392,7 +392,10 @@ export function annotate(file: string, cleaned: Clean, found: Range[]): string {
 export function fresh(file: string, cleaned: Clean): string {
   const lines = [...cleaned.text.lines];
   const s = style(file);
-  const line = cleaned.marks.file ?? (s === 'hash' ? `# ${MARKER} - new file` : `// ${MARKER} - new file`);
+  const line = cleaned.marks.file
+    ?? (s === 'hash' ? `# ${MARKER} - new file`
+      : s === 'xml' ? `<!-- ${MARKER} - new file -->`
+      : `// ${MARKER} - new file`);
   const at = lines[0]?.startsWith('#!') ? 1 : 0;
   lines.splice(at, 0, line);
   return join({ ...cleaned.text, lines });

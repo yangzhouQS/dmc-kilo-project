@@ -8,6 +8,9 @@
     "init": "tsx src/cli.ts init",
     "apply": "tsx src/cli.ts apply",
     "sync": "tsx src/cli.ts sync",
+    "sync:tag": "tsx src/cli.ts sync --tag jetbrains/v7.0.14",
+    "fix-markers": "tsx src/cli.ts fix-markers --all",
+    "reset-candidates": "tsx src/cli.ts reset-candidates",
     "scan": "tsx src/cli.ts scan-markers",
     "diff-markers": "tsx src/cli.ts diff-markers",
     "typecheck": "tsc --noEmit"

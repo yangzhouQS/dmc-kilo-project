@@ -1,7 +1,8 @@
+// custom_change - new file
 rootProject.name = "kilo.jetbrains"
 
 include("shared")
-include("custom") // custom_change
+include("custom")
 include("frontend")
 include("backend")
 
