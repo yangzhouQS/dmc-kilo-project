@@ -1,0 +1,19 @@
+# Build artifacts
+packages/kilo-jetbrains/build/
+packages/kilo-jetbrains/.gradle/
+packages/kilo-jetbrains/*/build/
+packages/kilo-jetbrains/*/.gradle/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Sync state
+.upstream-sync.bak
