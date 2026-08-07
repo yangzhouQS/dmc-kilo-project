@@ -41,7 +41,7 @@ if ($settings -notmatch 'include\(":custom"\)') {
 }
 
 # --- 2. plugin.xml: add custom module + change name/vendor ---
-$pluginXmlFile = Join-Path $JetDir "src\main\resources\plugin.xml"
+$pluginXmlFile = Join-Path $JetDir "src\main\resources\META-INF\plugin.xml"
 $pluginXml = Get-Content $pluginXmlFile -Raw
 
 # Add custom module to <content>

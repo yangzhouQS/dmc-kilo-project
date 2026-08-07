@@ -1,5 +1,5 @@
 <idea-plugin>
-    <name>Kilo Code</name>
+    <name>DMC Kilo</name> <!-- custom_change -->
     <vendor url="https://kilo.ai">Kilo Code</vendor>
 
     <description><![CDATA[

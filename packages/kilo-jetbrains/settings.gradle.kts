@@ -1,6 +1,6 @@
 rootProject.name = "kilo.jetbrains"
 
-include("shared")
+include("shared")`ninclude("custom") // custom_change`ninclude("custom") // custom_change
 include("frontend")
 include("backend")
 

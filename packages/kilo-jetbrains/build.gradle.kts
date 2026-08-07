@@ -184,7 +184,7 @@ intellijPlatform {
     pluginInstallationTarget = PluginInstallationTarget.BOTH
 
     pluginConfiguration {
-        id = "ai.kilocode.jetbrains"
+        id = "com.dmc.kilo" // custom_change
         name = "Kilo Code"
         version = provider { ver }
         changeNotes = notes
