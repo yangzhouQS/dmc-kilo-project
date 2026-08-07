@@ -49,7 +49,8 @@ export function runFixMarkers(opts: FixMarkersOptions = {}): void {
 
   // Resolve monorepo + sync point
   const monorepo = resolveMonorepo();
-  const syncPoint = readText(SYNC_FILE).trim();
+  const syncParts = readText(SYNC_FILE).trim().split(/\s+/);
+  const syncPoint = syncParts[0];
   const syncShort = gitTry(monorepo, ['rev-parse', '--short', syncPoint]).stdout || syncPoint.slice(0, 8);
 
   console.log(header('=== Rebuilding custom_change markers ==='));

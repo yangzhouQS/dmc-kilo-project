@@ -1,4 +1,3 @@
-// custom_change - new file
 import org.jetbrains.changelog.Changelog
 import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
@@ -185,7 +184,7 @@ intellijPlatform {
     pluginInstallationTarget = PluginInstallationTarget.BOTH
 
     pluginConfiguration {
-        id = "com.dmc.kilo"
+        id = "com.dmc.kilo" // custom_change
         name = "Kilo Code"
         version = provider { ver }
         changeNotes = notes

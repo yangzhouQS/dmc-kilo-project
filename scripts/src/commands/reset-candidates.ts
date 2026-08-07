@@ -47,7 +47,7 @@ export function runResetCandidates(opts: ResetCandidatesOptions = {}): void {
   const scope = opts.scope;
 
   const monorepo = resolveMonorepo();
-  const syncPoint = readText(SYNC_FILE).trim();
+  const syncPoint = readText(SYNC_FILE).trim().split(/\s+/)[0];
   const syncShort = gitTry(monorepo, ['rev-parse', '--short', syncPoint]).stdout || syncPoint.slice(0, 8);
 
   console.log(header('=== Find reset-to-upstream candidates ==='));

@@ -1,6 +1,5 @@
-<!-- custom_change - new file -->
 <idea-plugin>
-    <name>DMC Kilo</name>
+    <name>DMC Kilo</name> <!-- custom_change -->
     <vendor url="https://kilo.ai">Kilo Code</vendor>
 
     <description><![CDATA[
@@ -14,6 +13,6 @@
         <module name="kilo.jetbrains.shared" loading="required"/>
         <module name="kilo.jetbrains.frontend"/>
         <module name="kilo.jetbrains.backend"/>
-        <module name="com.dmc.kilo.custom"/>
+        <module name="com.dmc.kilo.custom"/> <!-- custom_change -->
     </content>
 </idea-plugin>
