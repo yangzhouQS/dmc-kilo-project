@@ -107,6 +107,14 @@ export function showFile(root: string, ref: string, filePath: string): string | 
 }
 
 /**
+ * Get blob size (bytes) at a specific ref. Returns null if not found.
+ */
+export function blobSize(root: string, ref: string, filePath: string): number | null {
+  const result = gitTry(root, ['cat-file', '-s', `${ref}:${filePath}`]);
+  return result.ok ? parseInt(result.stdout, 10) : null;
+}
+
+/**
  * Run a raw git command in a directory (for init, add, commit, etc.)
  * Returns trimmed stdout.
  */
@@ -117,4 +125,75 @@ export function gitExec(cwd: string, args: string[]): string {
     stdio: ['pipe', 'pipe', 'pipe'],
     maxBuffer: 50 * 1024 * 1024,
   }).trim();
+}
+
+// ---------------------------------------------------------------------------
+// Tag operations
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve a tag name to a full commit hash.
+ * Tries multiple formats: exact, jetbrains/ prefix, v prefix.
+ *
+ * Returns { commit, tag } or null if not found.
+ */
+export function resolveTag(
+  root: string,
+  tag: string,
+): { commit: string; tag: string } | null {
+  const candidates = normalizeTagCandidates(tag);
+  for (const candidate of candidates) {
+    const result = gitTry(root, ['rev-parse', '--verify', `${candidate}^{commit}`]);
+    if (result.ok && result.stdout) {
+      return { commit: result.stdout, tag: candidate };
+    }
+  }
+  return null;
+}
+
+/**
+ * Generate candidate tag names from user input.
+ * "v7.0.12" → ["v7.0.12", "jetbrains/v7.0.12"]
+ * "jetbrains/v7.0.12" → ["jetbrains/v7.0.12", "v7.0.12"]
+ * "7.0.12" → ["7.0.12", "v7.0.12", "jetbrains/v7.0.12", "jetbrains/v7.0.12"]
+ */
+function normalizeTagCandidates(tag: string): string[] {
+  const cleaned = tag.trim().replace(/^refs\/tags\//, '');
+  const candidates: string[] = [cleaned];
+
+  if (!cleaned.startsWith('jetbrains/')) {
+    candidates.push(`jetbrains/${cleaned}`);
+  }
+  if (!cleaned.startsWith('v') && !cleaned.includes('/')) {
+    candidates.push(`v${cleaned}`);
+    candidates.push(`jetbrains/v${cleaned}`);
+  }
+
+  return [...new Set(candidates)];
+}
+
+/**
+ * Fetch tags from a remote into the repo.
+ * Uses --no-tags for branches, --tags for tags.
+ */
+export function fetchTags(root: string, remote: string = 'origin'): void {
+  git(root, ['fetch', remote, '--tags', '--no-recurse-submodules']);
+}
+
+/**
+ * List tags matching a glob pattern.
+ * Default: all jetbrains/* tags.
+ */
+export function listTags(root: string, pattern: string = 'jetbrains/*'): string[] {
+  const result = gitTry(root, ['tag', '--list', pattern, '--sort=-version:refname']);
+  if (!result.ok || !result.stdout) return [];
+  return result.stdout.split('\n').filter((l) => l.trim());
+}
+
+/**
+ * Get the commit hash for a tag (peeled, not the tag object).
+ */
+export function tagCommit(root: string, tag: string): string | null {
+  const result = gitTry(root, ['rev-list', '-n', '1', tag]);
+  return result.ok ? result.stdout : null;
 }

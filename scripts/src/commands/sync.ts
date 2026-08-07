@@ -20,11 +20,14 @@
 
 import {
   diffNameStatus,
-  diffFile,
   getHead,
   getHeadShort,
   getShortHash,
   gitTry,
+  showFile,
+  resolveTag,
+  fetchTags,
+  listTags,
   type NameStatusEntry,
 } from '../lib/git.js';
 import { readText, writeText, copy, remove, exists, ensureDir } from '../lib/files.js';
@@ -43,11 +46,14 @@ import {
   isCustomDir,
 } from '../lib/paths.js';
 import { scanMarkers, formatRegions, hasMarkers } from '../lib/markers.js';
+import { mergeProtectedFile, type MergeStrategy } from '../lib/merge.js';
 import { c, header, ok, warn, err } from '../lib/colors.js';
 
 export interface SyncOptions {
   monorepo?: string;
   dryRun?: boolean;
+  /** Upstream tag to sync to (e.g. "jetbrains/v7.0.12"). */
+  tag?: string;
 }
 
 interface FileChange {
@@ -68,39 +74,75 @@ export function runSync(opts: SyncOptions = {}): void {
     process.exit(1);
   }
 
-  // --- Read sync point ---
+  // --- Read sync point (commit hash, optional tag) ---
   if (!exists(SYNC_FILE)) {
     console.error(err(`No sync point found at ${SYNC_FILE}.`));
     console.error(err('Run "npx tsx src/cli.ts init" first.'));
     process.exit(1);
   }
 
-  const syncPoint = readText(SYNC_FILE).trim();
+  const syncParts = readText(SYNC_FILE).trim().split(/\s+/);
+  const syncPoint = syncParts[0];
+  const syncTag = syncParts[1];
 
-  // --- Get upstream HEAD ---
-  const upstreamHead = getHead(monorepo);
-  const upstreamShort = getHeadShort(monorepo);
+  // --- Resolve sync target (tag or HEAD) ---
+  let targetCommit: string;
+  let targetTag: string | undefined;
+
+  if (opts.tag) {
+    const resolved = resolveTag(monorepo, opts.tag);
+    if (!resolved) {
+      console.log(warn(`Tag "${opts.tag}" not found in monorepo, fetching from upstream...`));
+      const upstreamUrl = gitTry(PROJECT_ROOT, ['remote', 'get-url', 'upstream']).stdout;
+      if (upstreamUrl) {
+        try {
+          fetchTags(monorepo, upstreamUrl);
+        } catch {
+          // monorepo's origin might differ; try fetching from upstream remote URL
+        }
+      }
+      const retry = resolveTag(monorepo, opts.tag);
+      if (!retry) {
+        console.error(err(`Tag "${opts.tag}" not found. Available jetbrains tags:`));
+        const tags = listTags(monorepo, 'jetbrains/*').slice(0, 10);
+        tags.forEach((t: string) => console.error(`  ${t}`));
+        if (tags.length === 0) console.error('  (none found — run: git -C <monorepo> fetch origin --tags)');
+        process.exit(1);
+      }
+      targetCommit = retry.commit;
+      targetTag = retry.tag;
+    } else {
+      targetCommit = resolved.commit;
+      targetTag = resolved.tag;
+    }
+  } else {
+    targetCommit = getHead(monorepo);
+    targetTag = undefined;
+  }
+
+  const targetShort = getShortHash(monorepo, targetCommit);
   const syncShort = getShortHash(monorepo, syncPoint);
 
-  if (syncPoint === upstreamHead) {
-    console.log(ok(`Already up to date (sync point = HEAD = ${upstreamShort})`));
+  if (syncPoint === targetCommit) {
+    const tagInfo = syncTag ? ` (tag: ${syncTag})` : '';
+    console.log(ok(`Already up to date (${syncShort}${tagInfo})`));
     process.exit(0);
   }
 
   console.log(header('=== Upstream Sync ==='));
-  console.log(`From : ${syncShort}`);
-  console.log(`To   : ${upstreamShort}`);
+  console.log(`From : ${syncShort}${syncTag ? ` (tag: ${syncTag})` : ''}`);
+  console.log(`To   : ${targetShort}${targetTag ? ` (tag: ${c.cyan(targetTag)})` : ' (HEAD)'}`);
   console.log();
 
   // --- Get changed files ---
-  const changed = diffNameStatus(monorepo, syncPoint, upstreamHead, [
+  const changed = diffNameStatus(monorepo, syncPoint, targetCommit, [
     JET_PREFIX,
     ICON_PREFIX,
   ]);
 
   if (changed.length === 0) {
     console.log(ok('No changes in tracked paths.'));
-    if (!dryRun) writeText(SYNC_FILE, upstreamHead);
+    if (!dryRun) writeSyncPoint(targetCommit, targetTag);
     process.exit(0);
   }
 
@@ -143,20 +185,21 @@ export function runSync(opts: SyncOptions = {}): void {
     console.log(ok(`Copied ${toCopy.length} files.`));
   }
 
-  // --- Show protected file diffs + markers ---
+  // --- 3-way merge protected files ---
+  let totalConflicts = 0;
   if (protectedChanges.length > 0) {
     console.log();
-    console.log(c.magenta(c.bold('=== Protected files need manual merge ===')));
+    console.log(warn('Merging protected files (3-way) ...'));
     for (const f of protectedChanges) {
-      showProtectedDiff(monorepo, syncPoint, upstreamHead, f.rel, f.type);
+      const conflictCount = mergeProtected(monorepo, syncPoint, targetCommit, f.rel, f.type, dryRun);
+      totalConflicts += conflictCount;
     }
-    console.log();
-    console.log(
-      c.magenta('These files were NOT overwritten. Review the diffs above and'),
-    );
-    console.log(
-      c.magenta('manually apply upstream changes while keeping your customizations.'),
-    );
+    if (totalConflicts > 0) {
+      console.log();
+      console.log(err(`${totalConflicts} conflict(s) need manual resolution.`));
+      console.log(err('Files with conflict markers are written to disk — open them in your editor.'));
+      console.log(err('Resolve conflicts, then run: npx tsx src/cli.ts fix-markers --all'));
+    }
   }
 
   // --- Handle deleted files ---
@@ -174,15 +217,18 @@ export function runSync(opts: SyncOptions = {}): void {
   }
 
   // --- Update sync point ---
-  writeText(SYNC_FILE, upstreamHead);
+  writeSyncPoint(targetCommit, targetTag);
   console.log();
-  console.log(ok(`Sync point updated to ${upstreamShort}`));
+  console.log(ok(`Sync point updated to ${targetShort}${targetTag ? ` (tag: ${targetTag})` : ''}`));
 
   // --- Suggest commit ---
   console.log();
   console.log(header('Review changes and commit:'));
   console.log('  git add -A');
-  console.log(`  git commit -m "sync upstream ${syncShort}..${upstreamShort}"`);
+  const commitMsg = targetTag
+    ? `sync upstream ${targetTag}`
+    : `sync upstream ${syncShort}..${targetShort}`;
+  console.log(`  git commit -m "${commitMsg}"`);
 }
 
 // ---------------------------------------------------------------------------
@@ -260,52 +306,97 @@ function resolveLocalPath(rel: string, type: 'jet' | 'icon'): string {
   return jetPath(rel);
 }
 
-function showProtectedDiff(
+/**
+ * Perform a 3-way merge of a protected file.
+ * Returns the number of conflicts (0 = clean).
+ */
+function mergeProtected(
   monorepo: string,
   syncPoint: string,
-  upstreamHead: string,
+  targetCommit: string,
   rel: string,
   type: 'jet' | 'icon',
-): void {
+  dryRun: boolean,
+): number {
   const gitPath = type === 'jet' ? `${JET_PREFIX}${rel}` : `${ICON_PREFIX}${rel}`;
-  console.log();
-  console.log(`${c.bold(`--- ${rel} ---`)}`);
-
-  // Show upstream diff
-  const diff = diffFile(monorepo, syncPoint, upstreamHead, gitPath);
-  if (diff) {
-    console.log(colorizeDiff(diff));
-  } else {
-    console.log('  (no text diff)');
-  }
-
-  // Show local marker regions
   const localPath = resolveLocalPath(rel, type);
-  if (exists(localPath)) {
-    const content = readText(localPath);
-    if (hasMarkers(content)) {
-      const { regions, errors } = scanMarkers(content);
-      console.log();
-      console.log(`  ${c.cyan('Local custom_change markers:')}`);
-      formatRegions(regions).forEach((line) => console.log(c.cyan(line)));
-      if (errors.length > 0) {
-        errors.forEach((e) => console.log(`  ${err(e)}`));
+
+  const localContent = exists(localPath) ? readText(localPath) : '';
+
+  const result = mergeProtectedFile(
+    () => showFile(monorepo, syncPoint, gitPath),
+    () => showFile(monorepo, targetCommit, gitPath),
+    localContent,
+  );
+
+  const tag = strategyTag(result.strategy);
+
+  switch (result.strategy) {
+    case 'clean':
+      if (!dryRun && result.content !== null) {
+        writeText(localPath, result.content);
       }
-    } else {
-      console.log(`  ${c.gray('(no custom_change markers in local file)')}`);
-    }
+      console.log(`  ${ok(tag)} ${rel} — ${result.summary}`);
+      return 0;
+
+    case 'conflict':
+      if (!dryRun && result.content !== null) {
+        writeText(localPath, result.content);
+      }
+      console.log(`  ${err(tag)} ${rel} — ${result.summary}`);
+      // Show local markers for reference
+      if (hasMarkers(localContent)) {
+        const { regions } = scanMarkers(localContent);
+        if (regions.length > 0) {
+          console.log(`    ${c.cyan('Existing custom_change markers:')}`);
+          formatRegions(regions).forEach((line) => console.log(`    ${c.cyan(line)}`));
+        }
+      }
+      return result.conflicts;
+
+    case 'theirs-only':
+      if (!dryRun && result.content !== null) {
+        writeText(localPath, result.content);
+      }
+      console.log(`  ${ok(tag)} ${rel} — ${result.summary}`);
+      return 0;
+
+    case 'deleted':
+      if (!dryRun && exists(localPath)) {
+        remove(localPath);
+      }
+      console.log(`  ${c.gray(tag)} ${rel} — ${result.summary}`);
+      return 0;
+
+    case 'unchanged':
+      console.log(`  ${c.gray(tag)} ${rel} — ${result.summary}`);
+      return 0;
+
+    case 'upstream-missing':
+      console.log(`  ${c.gray(tag)} ${rel} — ${result.summary}`);
+      return 0;
+
+    case 'error':
+      console.log(`  ${err(tag)} ${rel} — ${result.summary}`);
+      return 1;
   }
 }
 
-function colorizeDiff(diff: string): string {
-  return diff
-    .split('\n')
-    .map((line) => {
-      if (line.startsWith('+++') || line.startsWith('---')) return c.bold(line);
-      if (line.startsWith('@@')) return c.cyan(line);
-      if (line.startsWith('+')) return c.green(line);
-      if (line.startsWith('-')) return c.red(line);
-      return c.gray(line);
-    })
-    .join('\n');
+function strategyTag(strategy: MergeStrategy): string {
+  switch (strategy) {
+    case 'clean': return '[merged]';
+    case 'conflict': return '[CONFLICT]';
+    case 'theirs-only': return '[new]';
+    case 'deleted': return '[deleted]';
+    case 'unchanged': return '[skip]';
+    case 'upstream-missing': return '[n/a]';
+    case 'error': return '[ERROR]';
+  }
+}
+
+/**
+ * Write sync point file: commit hash + optional tag name.
+ */
+function writeSyncPoint(commit: string, tag?: string): void {
+  writeText(SYNC_FILE, tag ? `${commit} ${tag}` : commit);
 }

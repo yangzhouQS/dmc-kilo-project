@@ -20,6 +20,8 @@ import { runInit } from './commands/init.js';
 import { runApply } from './commands/apply.js';
 import { runSync } from './commands/sync.js';
 import { runScanMarkers } from './commands/scan-markers.js';
+import { runFixMarkers } from './commands/fix-markers.js';
+import { runResetCandidates } from './commands/reset-candidates.js';
 import { execSync } from 'node:child_process';
 import path from 'node:path';
 import { JET_DIR } from './lib/paths.js';
@@ -61,9 +63,10 @@ program
   .command('sync')
   .description('Sync upstream kilo-jetbrains changes into this project')
   .option('-m, --monorepo <path>', 'Path to the kilocode monorepo')
+  .option('-t, --tag <tag>', 'Sync to a specific upstream tag (e.g. jetbrains/v7.0.12)')
   .option('--dry-run', 'Show what would change without modifying files')
   .action((opts) => {
-    runSync({ monorepo: opts.monorepo, dryRun: opts.dryRun });
+    runSync({ monorepo: opts.monorepo, dryRun: opts.dryRun, tag: opts.tag });
   });
 
 // --- scan-markers ---
@@ -73,6 +76,30 @@ program
   .option('--include-custom', 'Also scan custom/ directory for stray markers')
   .action((opts) => {
     runScanMarkers({ includeCustom: opts.includeCustom });
+  });
+
+// --- fix-markers ---
+program
+  .command('fix-markers')
+  .description('Rebuild custom_change markers by comparing with upstream sync point')
+  .argument('[file]', 'Repo-relative file path')
+  .option('--all', 'Process all protected files')
+  .option('--dry-run', 'Show what would change without writing files')
+  .action((file: string | undefined, opts) => {
+    runFixMarkers({ file, all: opts.all, dryRun: opts.dryRun });
+  });
+
+// --- reset-candidates ---
+program
+  .command('reset-candidates')
+  .description('Find files that drifted insignificantly from upstream and optionally reset them')
+  .option('--review-limit <n>', 'Max non-marker diff lines for auto-reset', '5')
+  .option('--dry-run', 'Classify only, do not write any files')
+  .action((opts) => {
+    runResetCandidates({
+      reviewLimit: parseInt(opts.reviewLimit, 10),
+      dryRun: opts.dryRun,
+    });
   });
 
 // --- build (thin wrapper around gradlew) ---

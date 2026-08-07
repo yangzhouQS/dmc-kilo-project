@@ -26,12 +26,15 @@ npx tsx src/cli.ts build
 
 | 操作 | 命令 |
 |---|---|
-| 同步上游 | `npx tsx src/cli.ts sync` |
+| 同步上游（三方合并） | `npx tsx src/cli.ts sync` |
 | 预览同步（不修改文件） | `npx tsx src/cli.ts sync --dry-run` |
+| 重建 custom_change 标记 | `npx tsx src/cli.ts fix-markers --all` |
+| 查找漂移文件 | `npx tsx src/cli.ts reset-candidates --dry-run` |
+| 重置漂移文件到上游 | `npx tsx src/cli.ts reset-candidates` |
+| 扫描 custom_change 标记 | `npx tsx src/cli.ts scan-markers` |
 | 构建插件 | `npx tsx src/cli.ts build` |
 | 类型检查 | `npx tsx src/cli.ts build typecheck` |
 | 运行测试 | `npx tsx src/cli.ts build test` |
-| 扫描 custom_change 标记 | `npx tsx src/cli.ts scan-markers` |
 
 ## 项目结构
 
@@ -64,12 +67,17 @@ dmc-kilo-project/
 │   │   ├── commands/
 │   │   │   ├── init.ts              ← 初始化项目
 │   │   │   ├── apply.ts             ← 应用定制修改
-│   │   │   ├── sync.ts              ← 同步上游（标记感知）
+│   │   │   ├── sync.ts              ← 同步上游（git merge-file 三方合并）
+│   │   │   ├── fix-markers.ts       ← 重建 custom_change 标记
+│   │   │   ├── reset-candidates.ts  ← 漂移分类 + 自动重置
 │   │   │   └── scan-markers.ts      ← 扫描标记
 │   │   └── lib/
 │   │       ├── paths.ts             ← 路径常量 + 保护文件列表
 │   │       ├── git.ts               ← git 操作封装
-│   │       ├── markers.ts           ← custom_change 标记解析
+│   │       ├── merge.ts             ← git merge-file 三方合并
+│   │       ├── marker-dsl.ts        ← 标记剥离/对比/重新标注
+│   │       ├── markers.ts           ← custom_change 标记扫描
+│   │       ├── drift.ts             ← 漂移分类逻辑
 │   │       ├── files.ts             ← 文件 I/O
 │   │       └── colors.ts            ← ANSI 着色
 │   ├── node_modules/                ← gitignore
@@ -88,16 +96,16 @@ dmc-kilo-project/
 | 类型 | 文件 | 同步行为 |
 |---|---|---|
 | **安全文件** | shared/, frontend/, backend/, build-tasks/ 等所有非定制文件 | 自动覆盖 |
-| **保护文件** | settings.gradle.kts, build.gradle.kts, plugin.xml, gradle.properties, package.json | 显示 diff + 标记区域，手动合并 |
+| **保护文件** | settings.gradle.kts, build.gradle.kts, plugin.xml, gradle.properties, package.json | `git merge-file` 三方合并，冲突时写入冲突标记 |
 | **定制文件** | custom/ 目录 | 永不触碰 |
 
-### 冲突解决
-
-保护文件的冲突是确定性的——保留 `custom_change` 标记区域的定制，接受上游其他改动。
+### 同步后工作流
 
 ```bash
-# 扫描所有定制标记（在 scripts/ 目录下执行）
-npx tsx src/cli.ts scan-markers
+npx tsx src/cli.ts sync              # 三方合并（安全文件覆盖，保护文件 merge-file）
+npx tsx src/cli.ts fix-markers --all # 重建受保护文件的 custom_change 标记
+npx tsx src/cli.ts reset-candidates  # 清理漂移文件（markers-only/cosmetic/small-diff 自动重置）
+npx tsx src/cli.ts scan-markers      # 校验标记完整性
 ```
 
 ## 构建
