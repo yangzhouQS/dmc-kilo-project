@@ -33,7 +33,7 @@ $settingsFile = Join-Path $JetDir "settings.gradle.kts"
 $settings = Get-Content $settingsFile -Raw
 
 if ($settings -notmatch 'include\(":custom"\)') {
-    $settings = $settings -replace 'include\("shared"\)', 'include("shared")`ninclude("custom") // custom_change'
+    $settings = $settings -replace 'include\("shared"\)', "include(""shared"")`ninclude(""custom"") // custom_change"
     Set-Content -Path $settingsFile -Value $settings -NoNewline
     Write-Host "[1/3] settings.gradle.kts: added include("":custom"")" -ForegroundColor Green
 } else {
@@ -48,7 +48,7 @@ $pluginXml = Get-Content $pluginXmlFile -Raw
 if ($pluginXml -notmatch 'com\.dmc\.kilo\.custom') {
     $pluginXml = $pluginXml -replace
         '(<module name="ai\.kilocode\.jetbrains\.backend"/>)',
-        '$1`n        <module name="com.dmc.kilo.custom"/> <!-- custom_change -->'
+        "`$1`n        <module name=""com.dmc.kilo.custom""/> <!-- custom_change -->"
     Write-Host "[2/3] plugin.xml: added custom module to <content>" -ForegroundColor Green
 } else {
     Write-Host "[2/3] plugin.xml: custom module already present" -ForegroundColor Gray
