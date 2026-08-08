@@ -29,5 +29,14 @@
             <add-to-group group-id="EditorPopupMenu" anchor="first"/>
             <add-to-group group-id="ProjectViewPopupMenu" anchor="first"/>
         </group>
+
+        <action
+            id="com.dmc.ProblemFix"
+            class="com.dmc.actions.KiloProblemFixAction"
+            text="Kilo一键修复"
+            description="将当前问题填充到 Kilo 输入框"
+            icon="AllIcons.Actions.QuickfixBulb">
+            <add-to-group group-id="ProblemsView.ToolWindow.TreePopup" anchor="last"/>
+        </action>
     </actions>
 </idea-plugin>
