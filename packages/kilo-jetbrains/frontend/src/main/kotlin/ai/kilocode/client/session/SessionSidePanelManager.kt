@@ -118,6 +118,10 @@ class SessionSidePanelManager(
         ui.prompt(text, parts)
         return true
     }
+
+    override fun insertPromptText(text: String) {
+        current?.insertPromptText(text)
+    }
     // custom_change end
 
     private fun create(ref: SessionRef): SessionUi {

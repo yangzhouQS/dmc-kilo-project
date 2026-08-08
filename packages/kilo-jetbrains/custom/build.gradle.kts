@@ -13,7 +13,6 @@ dependencies {
     }
 
     implementation(project(":shared"))
-    implementation(project(":backend"))
     implementation(project(":frontend"))
 
     implementation(libs.okhttp)

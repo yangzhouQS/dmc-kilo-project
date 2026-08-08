@@ -175,12 +175,13 @@ dependencies {
         pluginModule(implementation(project(":shared")))
         pluginModule(implementation(project(":frontend")))
         pluginModule(implementation(project(":backend")))
+        pluginModule(implementation(project(":custom"))) // custom_change
         testFramework(TestFrameworkType.Platform)
     }
 }
 
 intellijPlatform {
-    splitMode = true
+    splitMode = false // custom_change
     pluginInstallationTarget = PluginInstallationTarget.BOTH
 
     pluginConfiguration {

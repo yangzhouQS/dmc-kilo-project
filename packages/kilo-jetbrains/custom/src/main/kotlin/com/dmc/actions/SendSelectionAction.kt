@@ -1,6 +1,6 @@
 package com.dmc.actions
 
-import com.dmc.bridge.DmcBridgeService
+import com.dmc.bridge.DmcSessionResolver
 import com.intellij.notification.Notification
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.AnAction
@@ -48,13 +48,21 @@ class SendSelectionAction : AnAction() {
             ),
         )
 
-        val bridge = DmcBridgeService.getInstance()
-        val sent = bridge.sendToSession(project, "Review the following code selection:", listOf(part))
+        LOG.info("SendSelection triggered: file=${vFile.name}, ${selectedText.length} chars")
 
-        if (sent) {
-            notify(project, "Selection sent to Kilo", NotificationType.INFORMATION)
-        } else {
+        val manager = DmcSessionResolver.getSessionManager(project)
+        if (manager == null) {
+            LOG.warn("No Kilo session manager found")
             notify(project, "No active Kilo session. Open the Kilo tool window first.", NotificationType.WARNING)
+            return
+        }
+
+        try {
+            manager.insertPromptText(buildSelectionText(relativePath, vFile.name, selectedText, startLine, endLine))
+            notify(project, "Code inserted into Kilo prompt", NotificationType.INFORMATION)
+        } catch (ex: Exception) {
+            LOG.warn("Send failed: ${ex.message}", ex)
+            notify(project, "Error: ${ex.message}", NotificationType.ERROR)
         }
     }
 
@@ -66,6 +74,18 @@ class SendSelectionAction : AnAction() {
     private fun toRelativePath(project: Project, vFile: VirtualFile): String {
         val basePath = project.basePath ?: return vFile.path
         return vFile.path.removePrefix(basePath).removePrefix("/")
+    }
+
+    private fun buildSelectionText(path: String, filename: String, code: String, startLine: Int, endLine: Int): String {
+        return buildString {
+            appendLine("// $filename (lines ${startLine + 1}-${endLine + 1})")
+            append("```")
+            appendLine()
+            appendLine(code)
+            append("```")
+            appendLine()
+            appendLine("请基于以上代码片段分析，处理一下问题")
+        }
     }
 
     private fun notify(project: Project, message: String, type: NotificationType) {

@@ -248,6 +248,13 @@ class SessionUi(
 
     internal fun prompt(text: String, parts: List<PromptPartDto> = emptyList()) = controller.prompt(text, parts) // custom_change
 
+    // custom_change start
+    internal fun insertPromptText(text: String) {
+        prompt.setText(text)
+        focusPrompt()
+    }
+    // custom_change end
+
     internal val cacheKey: String? get() = controller.refKey
 
     internal fun currentStyle() = style

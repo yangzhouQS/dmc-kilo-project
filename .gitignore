@@ -21,3 +21,5 @@ Desktop.ini
 # Node (scripts toolchain)
 scripts/node_modules/
 scripts/dist/
+kilocode-legacy-main
+

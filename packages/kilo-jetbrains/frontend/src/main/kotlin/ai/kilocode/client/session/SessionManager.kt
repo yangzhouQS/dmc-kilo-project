@@ -29,6 +29,8 @@ interface SessionManager {
 
     fun sendPrompt(text: String, parts: List<PromptPartDto> = emptyList()): Boolean = false // custom_change
 
+    fun insertPromptText(text: String) {} // custom_change
+
     fun openSession(session: SessionDto) {
         openSession(SessionRef.Local(session))
     }

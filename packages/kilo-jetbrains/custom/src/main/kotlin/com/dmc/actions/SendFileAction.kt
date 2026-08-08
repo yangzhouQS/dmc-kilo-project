@@ -1,6 +1,6 @@
 package com.dmc.actions
 
-import com.dmc.bridge.DmcBridgeService
+import com.dmc.bridge.DmcSessionResolver
 import com.intellij.notification.Notification
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.AnAction
@@ -30,13 +30,21 @@ class SendFileAction : AnAction() {
             filename = vFile.name,
         )
 
-        val bridge = DmcBridgeService.getInstance()
-        val sent = bridge.sendToSession(project, "Review this file:", listOf(part))
+        LOG.info("SendFile triggered: file=${vFile.name}")
 
-        if (sent) {
-            notify(project, "File sent to Kilo", NotificationType.INFORMATION)
-        } else {
+        val manager = DmcSessionResolver.getSessionManager(project)
+        if (manager == null) {
+            LOG.warn("No Kilo session manager found")
             notify(project, "No active Kilo session. Open the Kilo tool window first.", NotificationType.WARNING)
+            return
+        }
+
+        try {
+            manager.insertPromptText(buildFileText(relativePath, vFile.name))
+            notify(project, "File inserted into Kilo prompt", NotificationType.INFORMATION)
+        } catch (ex: Exception) {
+            LOG.warn("Send failed: ${ex.message}", ex)
+            notify(project, "Error: ${ex.message}", NotificationType.ERROR)
         }
     }
 
@@ -48,6 +56,16 @@ class SendFileAction : AnAction() {
     private fun toRelativePath(project: Project, vFile: VirtualFile): String {
         val basePath = project.basePath ?: return vFile.path
         return vFile.path.removePrefix(basePath).removePrefix("/")
+    }
+
+    private fun buildFileText(path: String, filename: String): String {
+        val content = java.io.File(path).takeIf { it.exists() }?.readText() ?: ""
+        return buildString {
+            appendLine("// $filename")
+            appendLine("```")
+            appendLine(content)
+            append("```")
+        }
     }
 
     private fun notify(project: Project, message: String, type: NotificationType) {

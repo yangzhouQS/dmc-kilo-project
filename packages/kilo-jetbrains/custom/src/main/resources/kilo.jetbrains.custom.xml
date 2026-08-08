@@ -1,0 +1,33 @@
+<!-- DMC Custom Module Descriptor -->
+<!-- Registered as a split-mode module inside the DMC Kilo plugin. -->
+<!-- This file is NOT part of upstream kilo-jetbrains. -->
+<idea-plugin>
+
+    <dependencies>
+        <module name="kilo.jetbrains.shared"/>
+        <module name="kilo.jetbrains.frontend"/>
+    </dependencies>
+
+    <actions>
+        <group id="com.dmc.KiloActions">
+            <action
+                id="com.dmc.SendSelection"
+                class="com.dmc.actions.SendSelectionAction"
+                text="Send Selection to Kilo"
+                description="Insert the selected code into the Kilo prompt"
+                icon="AllIcons.Actions.Copy">
+            </action>
+
+            <action
+                id="com.dmc.SendFile"
+                class="com.dmc.actions.SendFileAction"
+                text="Send File to Kilo"
+                description="Insert the current file into the Kilo prompt"
+                icon="AllIcons.Nodes.File">
+            </action>
+
+            <add-to-group group-id="EditorPopupMenu" anchor="first"/>
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="first"/>
+        </group>
+    </actions>
+</idea-plugin>
