@@ -1,0 +1,42 @@
+{
+  "name": "dmc-kilo-project",
+  "version": "1.0.0",
+  "description": "基于 kilo-jetbrains 插件的二次开发项目，定期同步上游官方源码。",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "_gradle": "cd packages/kilo-jetbrains && gradlew.bat",
+    "_cli": "tsx scripts/src/cli.ts",
+
+    "build": "cd packages/kilo-jetbrains && gradlew.bat buildPlugin",
+    "typecheck": "cd packages/kilo-jetbrains && gradlew.bat typecheck",
+    "test": "cd packages/kilo-jetbrains && gradlew.bat test",
+    "clean": "cd packages/kilo-jetbrains && gradlew.bat clean",
+    "sandbox": "cd packages/kilo-jetbrains && gradlew.bat prepareSandbox",
+    "run": "cd packages/kilo-jetbrains && gradlew.bat runIde --no-daemon --no-configuration-cache",
+    "run:split": "cd packages/kilo-jetbrains && gradlew.bat runIdeSplitMode --no-configuration-cache",
+
+    "sync": "tsx scripts/src/cli.ts sync",
+    "sync:tag": "tsx scripts/src/cli.ts sync --tag",
+    "apply": "tsx scripts/src/cli.ts apply",
+    "scan": "tsx scripts/src/cli.ts scan-markers",
+    "fix-markers": "tsx scripts/src/cli.ts fix-markers --all",
+    "reset-candidates": "tsx scripts/src/cli.ts reset-candidates",
+
+    "cli:help": "tsx scripts/src/cli.ts --help"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yangzhouQS/dmc-kilo-project.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/yangzhouQS/dmc-kilo-project/issues"
+  },
+  "homepage": "https://github.com/yangzhouQS/dmc-kilo-project#readme"
+}

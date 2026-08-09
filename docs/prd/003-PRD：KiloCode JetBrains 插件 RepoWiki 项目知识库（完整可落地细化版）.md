@@ -19,7 +19,7 @@
 项目根目录固定路径，全 UTF\-8 无 BOM，Git 可追踪同步团队知识
 
 ```Plain Text
-项目根目录/.kilocode/
+项目根目录/.kilo/
 ├─ rules/                     # 已有：项目编码规则，Wiki生成自动读取
 ├─ repowiki/
 │  ├─ wiki_plan.yaml          # Wiki生成全局配置（黑白名单、模板、引导文案）
@@ -79,7 +79,7 @@
 
     - 传参：项目根路径、配置文件路径、语言 zh/en、扫描黑白名单
 
-    - 输出：直接写入`/.kilocode/repowiki`目录，插件无需二次转换
+    - 输出：直接写入`/.kilo/repowiki`目录，插件无需二次转换
 
 2. `kilocode wiki-update` 增量更新命令
 
@@ -91,7 +91,7 @@
 
 4. CLI 统一配置打通：
 
-    - CLI 读取项目`.kilocode`配置，与 JetBrains 插件共享同一套 API Key、模型、代理、项目规则
+    - CLI 读取项目`.kilo`配置，与 JetBrains 插件共享同一套 API Key、模型、代理、项目规则
 
 5. 调用约束：
 
@@ -111,7 +111,7 @@
 
 4. LLM Orchestrator：内部推理入口，小型 Wiki 生成直接复用，不走 CLI
 
-5. `.kilocode/rules` 规则读取服务，自动注入 Wiki 生成 Prompt
+5. `.kilo/rules` 规则读取服务，自动注入 Wiki 生成 Prompt
 
 # 二、模块 1：RepoWiki 结构化文档（完整细化实现）
 
@@ -119,7 +119,7 @@
 
 ### 2\.1\.1 文件读取逻辑
 
-1. 项目打开时，`WikiManager` 自动检测 `项目根/.kilocode/repowiki/wiki_plan.yaml`
+1. 项目打开时，`WikiManager` 自动检测 `项目根/.kilo/repowiki/wiki_plan.yaml`
 
 2. 文件不存在：生成默认模板写入本地，提供基础黑白名单与架构模板
 
@@ -150,11 +150,11 @@
 
 2. 通过 PsiIndex 批量解析模块、类、接口、函数、数据实体、API 定义
 
-3. 将 PSI 结构化数据 \+ wiki\_plan 引导文案 \+ `.kilocode/rules` 项目规则拼接 Prompt
+3. 将 PSI 结构化数据 \+ wiki\_plan 引导文案 \+ `.kilo/rules` 项目规则拼接 Prompt
 
 4. 调用插件内部`CommitMessageOrchestrator`同款 LLM 推理入口，批量生成 Wiki 页面 md 文本
 
-5. WriteAction 写入`/.kilocode/repowiki/zh/wiki/`，生成元数据`.meta`记录每个文件哈希值（用于增量比对）
+5. WriteAction 写入`/.kilo/repowiki/zh/wiki/`，生成元数据`.meta`记录每个文件哈希值（用于增量比对）
 
 6. 同步触发`KnowledgeCardService`生成全套知识卡片
 
@@ -242,7 +242,7 @@
 存储路径：`repowiki/zh/knowledge_cards/architecture_xxx.md`
 
 2. **编码规约 Spec 卡片**
-数据来源：`.kilocode/rules` 规则文件、项目现有接口 / 命名 / 异常处理代码样本
+数据来源：`.kilo/rules` 规则文件、项目现有接口 / 命名 / 异常处理代码样本
 用途：代码生成、Problems 一键修复、代码评审时优先注入上下文
 
 3. **技术栈卡片**
@@ -266,7 +266,7 @@
 ## 4\.1 存储路径隔离（核心区分）
 
 1. **项目记忆（可 Git 提交）**
-路径：`/.kilocode/repowiki/zh/memory/*.md`
+路径：`/.kilo/repowiki/zh/memory/*.md`
 内容：当前仓库业务踩坑、模块决策、项目专属约束
 
 2. **全局个人记忆（不进 Git）**
@@ -345,7 +345,7 @@
 扩展点注册 plugin\.xml
 
 ```xml
-<toolWindow factoryClass="com.kilocode.toolwindow.WikiToolWindowFactory" id="KiloWiki" anchor="right">
+<toolWindow factoryClass="com.kilo.toolwindow.WikiToolWindowFactory" id="KiloWiki" anchor="right">
     <title>Kilo知识库</title>
 </toolWindow>
 ```
@@ -397,7 +397,7 @@ update 方法控制：选中源码文件才启用，二进制 / 目录过滤置�
 
 # 八、Git 团队同步完整实现逻辑
 
-1. `.kilocode/repowiki` 目录全部为文本文件，用户可自由提交至 Git 远程仓库
+1. `.kilo/repowiki` 目录全部为文本文件，用户可自由提交至 Git 远程仓库
 
 2. 团队成员 git pull 拉取后，打开项目自动加载本地知识库，无需额外生成
 
@@ -451,7 +451,7 @@ update 方法控制：选中源码文件才启用，二进制 / 目录过滤置�
 
 5. 切换 Git 分支，验证加载当前分支独立知识库，分支间内容隔离
 
-6. 将`.kilocode/repowiki`提交 Git，新成员拉取代码打开项目自动加载完整知识库
+6. 将`.kilo/repowiki`提交 Git，新成员拉取代码打开项目自动加载完整知识库
 
 7. Problems 面板执行一键修复，校验自动注入对应模块知识卡片上下文
 
