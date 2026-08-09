@@ -1,0 +1,25 @@
+# RepoWiki 配置文件
+# 修改后保存即生效，下次 Wiki 生效
+
+# 知识库语言
+language: zh
+
+# 扫描范围
+scope:
+  # 包含目录（空 = 全项目）
+  include: []
+  # 排除目录（追加内置黑名单）
+  exclude:
+    - "*.test.ts"
+    - "*.spec.ts"
+    - "*.mock.ts"
+
+# 文件限制
+limits:
+  maxFiles: 10000
+  maxFileSize: 512000
+
+# 增量更新
+incremental:
+  enabled: true
+  debounceMs: 2000

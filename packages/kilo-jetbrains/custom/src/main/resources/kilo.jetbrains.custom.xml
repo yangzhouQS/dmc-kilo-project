@@ -8,6 +8,14 @@
         <module name="kilo.jetbrains.frontend"/>
     </dependencies>
 
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow
+            id="KiloWiki"
+            anchor="right"
+            icon="AllIcons.Toolwindows.ToolWindowDocumentation"
+            factoryClass="com.dmc.wiki.WikiToolWindowFactory"/>
+    </extensions>
+
     <actions>
         <group id="com.dmc.KiloActions">
             <action
@@ -63,5 +71,14 @@
                 icon="AllIcons.Actions.NewFolder"/>
             <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
         </group>
+
+        <action
+            id="com.dmc.GenerateWiki"
+            class="com.dmc.actions.GenerateWikiAction"
+            text="生成 Wiki 文档"
+            description="扫描选中目录代码结构，生成 Wiki 文档"
+            icon="AllIcons.Actions.Refresh">
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+        </action>
     </actions>
 </idea-plugin>
