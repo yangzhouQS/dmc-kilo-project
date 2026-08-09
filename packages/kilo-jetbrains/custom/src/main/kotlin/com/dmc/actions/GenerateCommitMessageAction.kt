@@ -5,11 +5,11 @@ import com.intellij.notification.Notification
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.DataKey
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vcs.VcsDataKeys
 import com.intellij.openapi.vcs.changes.Change
-import com.intellij.openapi.vcs.changes.ChangeListManager
 
 private val LOG = logger<GenerateCommitMessageAction>()
 
@@ -19,26 +19,34 @@ private const val MAX_FILE_LINES = 500
 private const val MAX_KEEP = 50
 private const val MAX_PROMPT = 8000
 
+// 反射获取 COMMIT_WORKFLOW_HANDLER DataKey（避免编译期依赖 impl jar）
+private val HANDLER_KEY: DataKey<*>? = try {
+    VcsDataKeys::class.java.getField("COMMIT_WORKFLOW_HANDLER").get(null) as DataKey<*>
+} catch (_: Exception) {
+    null
+}
+
 class GenerateCommitMessageAction : AnAction() {
 
     override fun update(e: AnActionEvent) {
-        e.presentation.isEnabled = true
+        val changes = getIncludedChanges(e)
+        e.presentation.isEnabledAndVisible = changes.isNotEmpty()
     }
 
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
 
-        val allChanges = getChanges(e, project)
-        if (allChanges.isEmpty()) {
-            notify(project, "当前没有检测到文件变更", NotificationType.WARNING)
+        val changes = getIncludedChanges(e)
+        if (changes.isEmpty()) {
+            notify(project, "请先勾选要提交的文件", NotificationType.WARNING)
             return
         }
 
-        val changes = allChanges.take(MAX_FILES)
-        val truncated = allChanges.size > MAX_FILES
-        val prompt = buildPrompt(project, changes, truncated)
+        LOG.info("GenerateCommitMessage: ${changes.size} included changes")
 
-        LOG.info("GenerateCommitMessage: ${changes.size} files, ${prompt.length} chars")
+        val effective = changes.take(MAX_FILES)
+        val truncated = changes.size > MAX_FILES
+        val prompt = buildPrompt(project, effective, truncated)
 
         val manager = DmcSessionResolver.getSessionManager(project)
         if (manager == null) {
@@ -48,19 +56,41 @@ class GenerateCommitMessageAction : AnAction() {
 
         try {
             manager.insertPromptText(prompt)
-            notify(project, "提交信息 Prompt 已填充到 Kilo（${changes.size} 个文件）", NotificationType.INFORMATION)
+            notify(project, "提交信息 Prompt 已填充到 Kilo（${effective.size} 个文件）", NotificationType.INFORMATION)
         } catch (ex: Exception) {
             LOG.warn("Commit generation failed: ${ex.message}", ex)
             notify(project, "Error: ${ex.message}", NotificationType.ERROR)
         }
     }
 
-    private fun getChanges(e: AnActionEvent, project: Project): List<Change> {
-        val fromContext = e.getData(VcsDataKeys.CHANGES)?.toList()
-        if (!fromContext.isNullOrEmpty()) return fromContext
-
-        val fromManager = ChangeListManager.getInstance(project).allChanges.toList()
-        if (fromManager.isNotEmpty()) return fromManager
+    private fun getIncludedChanges(e: AnActionEvent): List<Change> {
+        // 通过反射获取 CommitWorkflowHandler → ui → includedChanges
+        if (HANDLER_KEY != null) {
+            val handler = e.getData(HANDLER_KEY)
+            if (handler != null) {
+                LOG.info("Handler type: ${handler.javaClass.name}")
+                try {
+                    val getUi = handler.javaClass.getMethod("getUi")
+                    val ui = getUi.invoke(handler)
+                    if (ui != null) {
+                        LOG.info("UI type: ${ui.javaClass.name}")
+                        val getIncluded = ui.javaClass.getMethod("getIncludedChanges")
+                        val result = getIncluded.invoke(ui)
+                        if (result is Collection<*>) {
+                            val changes = result.filterIsInstance<Change>()
+                            LOG.info("Included changes: ${changes.size}")
+                            return changes
+                        }
+                    }
+                } catch (ex: Exception) {
+                    LOG.warn("Reflection failed: ${ex.message}")
+                }
+            } else {
+                LOG.info("Handler is null for HANDLER_KEY")
+            }
+        } else {
+            LOG.info("HANDLER_KEY not found via reflection")
+        }
 
         return emptyList()
     }
@@ -93,6 +123,13 @@ class GenerateCommitMessageAction : AnAction() {
             val type = change.type
             sb.appendLine("--- $path (${typeText(type)}) ---")
 
+            val vFile = change.virtualFile
+            if (vFile != null && vFile.fileType.isBinary) {
+                sb.appendLine("（二进制文件，跳过内容）")
+                sb.appendLine()
+                continue
+            }
+
             val after = safeContent { change.afterRevision?.content }
             val before = safeContent { change.beforeRevision?.content }
 
@@ -109,7 +146,8 @@ class GenerateCommitMessageAction : AnAction() {
     }
 
     private fun filePath(change: Change, basePath: String): String {
-        val path = change.afterRevision?.file?.path
+        val path = change.virtualFile?.path
+            ?: change.afterRevision?.file?.path
             ?: change.beforeRevision?.file?.path
             ?: return "unknown"
         return if (basePath.isNotEmpty()) path.removePrefix(basePath).removePrefix("/") else path
