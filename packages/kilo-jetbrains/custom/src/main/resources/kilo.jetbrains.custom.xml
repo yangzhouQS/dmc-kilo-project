@@ -38,5 +38,14 @@
             icon="AllIcons.Actions.QuickfixBulb">
             <add-to-group group-id="ProblemsView.ToolWindow.TreePopup" anchor="last"/>
         </action>
+
+        <action
+            id="com.dmc.GenerateCommitMessage"
+            class="com.dmc.actions.GenerateCommitMessageAction"
+            text="Kilo 生成提交信息"
+            description="读取勾选的文件变更，生成 Commit Message Prompt"
+            icon="AllIcons.Actions.Preview">
+            <add-to-group group-id="Vcs.MessageActionGroup" anchor="last"/>
+        </action>
     </actions>
 </idea-plugin>
