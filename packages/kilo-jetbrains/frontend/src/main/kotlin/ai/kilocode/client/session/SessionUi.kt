@@ -253,6 +253,10 @@ class SessionUi(
         prompt.setText(text)
         focusPrompt()
     }
+
+    internal fun addAttachments(files: List<ai.kilocode.client.session.model.PromptAttachment>) {
+        prompt.addAttachments(files)
+    }
     // custom_change end
 
     internal val cacheKey: String? get() = controller.refKey

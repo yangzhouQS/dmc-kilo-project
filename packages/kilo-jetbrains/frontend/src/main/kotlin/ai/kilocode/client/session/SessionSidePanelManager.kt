@@ -5,6 +5,7 @@ import ai.kilocode.client.app.KiloWorkspaceService
 import ai.kilocode.client.app.Workspace
 import ai.kilocode.client.session.history.HistoryController
 import ai.kilocode.rpc.dto.PromptPartDto // custom_change
+import ai.kilocode.client.session.model.PromptAttachment // custom_change
 import ai.kilocode.client.session.history.HistoryPanel
 import ai.kilocode.client.telemetry.Telemetry
 import ai.kilocode.client.util.UiTimer
@@ -121,6 +122,10 @@ class SessionSidePanelManager(
 
     override fun insertPromptText(text: String) {
         current?.insertPromptText(text)
+    }
+
+    override fun addFileAttachments(files: List<PromptAttachment>) {
+        current?.addAttachments(files)
     }
     // custom_change end
 

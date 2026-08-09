@@ -47,5 +47,21 @@
             icon="AllIcons.Actions.Preview">
             <add-to-group group-id="Vcs.MessageActionGroup" anchor="last"/>
         </action>
+
+        <group id="com.dmc.AddToSessionGroup">
+            <action
+                id="com.dmc.AddToSession"
+                class="com.dmc.actions.AddToSessionAction"
+                text="添加到会话"
+                description="将选中的文件/目录添加到当前 Kilo 会话"
+                icon="AllIcons.Actions.Attach"/>
+            <action
+                id="com.dmc.AddToNewSession"
+                class="com.dmc.actions.AddToNewSessionAction"
+                text="添加到新会话"
+                description="创建新会话并添加选中的文件/目录"
+                icon="AllIcons.Actions.NewFolder"/>
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+        </group>
     </actions>
 </idea-plugin>

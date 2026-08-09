@@ -553,6 +553,13 @@ class PromptPanel(
         addAttachment(item)
     }
 
+    // custom_change start
+    @RequiresEdt
+    internal fun addAttachments(items: List<PromptAttachment>) {
+        items.forEach { addAttachment(it) }
+    }
+    // custom_change end
+
     internal fun processPasteForTest(transferable: Transferable): Future<*> = processPaste(transferable)
 
     @RequiresEdt
