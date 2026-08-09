@@ -177,6 +177,91 @@ function listWikiFiles(wikiBase: string): string {
 }
 
 // ============================================================
+// 自动编号 + README 索引生成
+// ============================================================
+
+function autoNumberFilename(dir: string, filename: string): string {
+  const existing = listMarkdownFiles(dir)
+  const maxNum = existing.reduce((max, f) => {
+    const match = basename(f).match(/^(\d{2})-/)
+    return match ? Math.max(max, parseInt(match[1], 10)) : max
+  }, 0)
+  const nextNum = String(maxNum + 1).padStart(2, "0")
+  return `${nextNum}-${filename}`
+}
+
+function generateReadme(wikiBase: string): void {
+  const lang = detectLanguage(wikiBase)
+  const wikiDir = join(wikiBase, lang, "wiki")
+  const cardDir = join(wikiBase, lang, "knowledge_cards")
+
+  const wikiFiles = listMarkdownFiles(wikiDir).sort()
+  const cardFiles = listMarkdownFiles(cardDir).sort()
+
+  if (wikiFiles.length === 0 && cardFiles.length === 0) return
+
+  const lines: string[] = []
+  lines.push("# 项目 Wiki 文档索引")
+  lines.push("")
+  lines.push("> 本文件由 RepoWiki 自动生成，请勿手动编辑。")
+  lines.push("")
+
+  // 统计
+  const totalFiles = wikiFiles.length + cardFiles.length
+  let totalLines = 0
+  for (const f of [...wikiFiles, ...cardFiles]) {
+    const text = readText(f)
+    if (text) totalLines += text.split("\n").length
+  }
+  lines.push(`共 **${totalFiles}** 篇文档，**${totalLines}** 行内容。`)
+  lines.push("")
+  lines.push("---")
+  lines.push("")
+
+  // Wiki 目录
+  if (wikiFiles.length > 0) {
+    lines.push("## 模块文档")
+    lines.push("")
+    lines.push("| 序号 | 文档 | 描述 |")
+    lines.push("|---|---|---|")
+    for (const f of wikiFiles) {
+      const name = basename(f, ".md")
+      const title = extractTitle(readText(f) || "") || name
+      lines.push(`| ${name.substring(0, 2)} | [${name}](./wiki/${name}.md) | ${title} |`)
+    }
+    lines.push("")
+  }
+
+  // 知识卡片目录
+  if (cardFiles.length > 0) {
+    lines.push("## 知识卡片")
+    lines.push("")
+    lines.push("| 序号 | 卡片 | 描述 |")
+    lines.push("|---|---|---|")
+    for (const f of cardFiles) {
+      const name = basename(f, ".md")
+      const title = extractTitle(readText(f) || "") || name
+      lines.push(`| - | [${name}](./knowledge_cards/${name}.md) | ${title} |`)
+    }
+    lines.push("")
+  }
+
+  lines.push("---")
+  lines.push("")
+  lines.push("*最后更新: " + new Date().toISOString().replace("T", " ").substring(0, 19) + "*")
+
+  writeText(join(wikiBase, lang, "README.md"), lines.join("\n") + "\n")
+}
+
+function extractTitle(content: string): string {
+  // 提取第一个 # 标题或第一行非空行
+  const h1 = content.match(/^#\s+(.+)$/m)
+  if (h1) return h1[1].trim().substring(0, 60)
+  const firstLine = content.split("\n").find((l) => l.trim() && !l.startsWith("<!--"))
+  return firstLine ? firstLine.trim().substring(0, 60) : ""
+}
+
+// ============================================================
 // 记忆保存
 // ============================================================
 
@@ -255,14 +340,22 @@ const RepowikiPlugin: Plugin = async ({ directory }) => {
           ensureDir(targetDir)
 
           const safeName = args.filename.replace(/[^a-zA-Z0-9_\-\.]/g, "-")
-          const filePath = join(targetDir, `${safeName}.md`)
+          // wiki 类别自动编号（已编号的不重复加）
+          let finalName = safeName
+          if (args.category === "wiki" && !/^\d{2}-/.test(safeName)) {
+            finalName = autoNumberFilename(targetDir, safeName)
+          }
+          const filePath = join(targetDir, `${finalName}.md`)
           writeText(filePath, args.content)
 
-          const lines = args.content.split("\n").length
+          // 保存后重新生成 README 索引
+          generateReadme(wikiBase)
+
+          const contentLines = args.content.split("\n").length
           return {
-            title: `已保存 ${args.category}/${safeName}.md`,
-            output: `文档已保存到知识库。\n文件: ${args.category}/${safeName}.md\n行数: ${lines}\n后续对话将自动注入此文档作为上下文。`,
-            metadata: { file: safeName, category: args.category, lines },
+            title: `已保存 ${args.category}/${finalName}.md`,
+            output: `文档已保存到知识库。\n文件: ${args.category}/${finalName}.md\n行数: ${contentLines}\nREADME.md 索引已更新。`,
+            metadata: { file: finalName, category: args.category, lines: contentLines },
           }
         },
       }),
