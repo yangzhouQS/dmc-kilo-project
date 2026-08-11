@@ -250,7 +250,7 @@ class SessionUi(
 
     // custom_change start
     internal fun insertPromptText(text: String) {
-        prompt.setText(text)
+        prompt.insertTextAtCaret(text)
         focusPrompt()
     }
 

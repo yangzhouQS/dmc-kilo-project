@@ -453,6 +453,21 @@ class PromptPanel(
         syncHighlights()
     }
 
+    // custom_change start
+    @RequiresEdt
+    internal fun insertTextAtCaret(text: String) {
+        val ed = editor.editor
+        if (ed != null) {
+            val offset = ed.caretModel.offset
+            ed.document.insertString(offset, text)
+            ed.caretModel.moveToOffset(offset + text.length)
+            syncHighlights()
+        } else {
+            setText(text)
+        }
+    }
+    // custom_change end
+
     @RequiresEdt
     override fun send() {
         submit("action")

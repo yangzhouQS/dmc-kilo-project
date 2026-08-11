@@ -61,7 +61,7 @@ class SendFileAction : AnAction() {
     private fun buildFileText(path: String, filename: String): String {
         val content = java.io.File(path).takeIf { it.exists() }?.readText() ?: ""
         return buildString {
-            appendLine("// $filename")
+            appendLine("// $path")
             appendLine("```")
             appendLine(content)
             append("```")

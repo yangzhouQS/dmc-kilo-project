@@ -78,13 +78,12 @@ class SendSelectionAction : AnAction() {
 
     private fun buildSelectionText(path: String, filename: String, code: String, startLine: Int, endLine: Int): String {
         return buildString {
-            appendLine("// $filename (lines ${startLine + 1}-${endLine + 1})")
+            appendLine("// $path (lines ${startLine + 1}-${endLine + 1})")
             append("```")
             appendLine()
             appendLine(code)
             append("```")
             appendLine()
-            appendLine("请基于以上代码片段分析，处理一下问题")
         }
     }
 
