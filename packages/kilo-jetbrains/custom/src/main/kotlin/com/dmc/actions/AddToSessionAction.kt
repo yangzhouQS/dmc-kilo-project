@@ -54,6 +54,7 @@ class AddToSessionAction : AnAction() {
                     manager.addFileAttachments(result.attachments)
                     val msg = buildString {
                         append("已添加 ${result.attachments.size} 个文件到当前会话")
+                        if (result.skipped.isNotEmpty()) append("，跳过 ${result.skipped.size} 个：${result.skipped.joinToString("、")}")
                         if (result.truncated) append("（已截断至 200 个）")
                     }
                     notify(project, msg, NotificationType.INFORMATION)

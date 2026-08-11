@@ -181,7 +181,7 @@ dependencies {
 }
 
 intellijPlatform {
-    splitMode = false // custom_change
+    splitMode = true // custom_change
     pluginInstallationTarget = PluginInstallationTarget.BOTH
 
     pluginConfiguration {
