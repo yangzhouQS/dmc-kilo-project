@@ -18,12 +18,16 @@
     "run": "cd packages/kilo-jetbrains && gradlew.bat runIde --no-daemon --no-configuration-cache",
     "run:split": "cd packages/kilo-jetbrains && gradlew.bat runIdeSplitMode --no-configuration-cache",
 
-    "sync": "tsx scripts/src/cli.ts sync",
-    "sync:tag": "tsx scripts/src/cli.ts sync --tag",
-    "apply": "tsx scripts/src/cli.ts apply",
+    "1. 扫描标记": "",
     "scan": "tsx scripts/src/cli.ts scan-markers",
+    "2. 执行同步": "",
+    "sync": "tsx scripts/src/cli.ts sync",
+    "sync:tag": "tsx scripts/src/cli.ts sync --tag jetbrains/v7.0.15",
+    "3. 同步后再次扫描标记": "npm run scan",
+    "apply": "tsx scripts/src/cli.ts apply",
     "fix-markers": "tsx scripts/src/cli.ts fix-markers --all",
     "reset-candidates": "tsx scripts/src/cli.ts reset-candidates",
+    "check-protected": "tsx scripts/src/cli.ts check-protected",
 
     "cli:help": "tsx scripts/src/cli.ts --help"
   },

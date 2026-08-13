@@ -42,6 +42,7 @@ import com.intellij.openapi.actionSystem.ex.ActionUtil
 import com.intellij.openapi.actionSystem.IdeActions
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.editor.DefaultLanguageHighlighterColors
+import com.intellij.openapi.editor.Document
 import com.intellij.openapi.editor.SpellCheckingEditorCustomizationProvider
 import com.intellij.openapi.editor.colors.CodeInsightColors
 import com.intellij.openapi.editor.colors.TextAttributesKey
@@ -126,11 +127,14 @@ class PromptPanel(
         private val INVALID_KEY = CodeInsightColors.WRONG_REFERENCES_ATTRIBUTES
     }
 
-    val mode = ModePicker()
+    // Prompt-bar pickers blend into the prompt background when idle and only show the standard
+    // hover fill on pointer-over (idleFill = null paints nothing behind the label).
+    val mode = ModePicker().apply { idleFill = null }
     val model = ModelPicker().apply {
         placement = ModelPicker.Placement.ABOVE
+        idleFill = null
     }
-    val reasoning = ReasoningPicker()
+    val reasoning = ReasoningPicker().apply { idleFill = null }
     var onReset: () -> Unit = {}
     var onChange: () -> Unit = {}
     var onAutoApproveToggle: (Boolean) -> Unit = {}
@@ -256,6 +260,7 @@ class PromptPanel(
     private var ready = false
     private var enhancing = false
     private var request = 0L
+    private var deferred = false
 
     override val isSendEnabled: Boolean
         get() = ready && !submitting && (text().isNotEmpty() || attachments.isNotEmpty())
@@ -270,11 +275,21 @@ class PromptPanel(
         editor.addDocumentListener(object : DocumentListener {
             override fun documentChanged(e: DocumentEvent) {
                 invalidateEnhancement()
+                if (e.document.isInBulkUpdate) {
+                    deferEditorSync()
+                    syncButton()
+                    onChange()
+                    return
+                }
                 syncEditorHeight()
                 triggerCompletion(e)
                 syncHighlights()
                 syncButton()
                 onChange()
+            }
+
+            override fun bulkUpdateFinished(document: Document) {
+                deferEditorSync()
             }
         })
         shell.add(strip, BorderLayout.NORTH)
@@ -299,8 +314,8 @@ class PromptPanel(
         bar.add(Box.createHorizontalStrut(JBUI.scale(SessionUiStyle.View.Prompt.CONTROL_GAP)))
         // custom_change start
         bar.add(McpToolbarButton(project))
-        // custom_change end
         bar.add(Box.createHorizontalStrut(JBUI.scale(SessionUiStyle.View.Prompt.CONTROL_GAP)))
+        // custom_change end
         bar.add(separator)
         bar.add(Box.createHorizontalStrut(JBUI.scale(SessionUiStyle.View.Prompt.CONTROL_GAP)))
         bar.add(button)
@@ -403,7 +418,7 @@ class PromptPanel(
     @RequiresEdt
     private fun chrome(ed: EditorEx) {
         if (ed.isDisposed) return
-        style.applyPromptToEditor(ed)
+        style.applyPromptToEditor(ed, SessionUiStyle.View.Prompt.bgColor(style))
         if (ed.isDisposed) return
     }
 
@@ -470,6 +485,11 @@ class PromptPanel(
             setText(text)
         }
     }
+
+    @RequiresEdt
+    internal fun addAttachments(items: List<PromptAttachment>) {
+        items.forEach { addAttachment(it) }
+    }
     // custom_change end
 
     @RequiresEdt
@@ -504,11 +524,12 @@ class PromptPanel(
     @RequiresEdt
     override fun applyStyle(style: SessionEditorStyle) {
         this.style = style
-        background = style.editorScheme.defaultBackground
-        shell.background = style.editorScheme.defaultBackground
+        val bg = SessionUiStyle.View.Prompt.bgColor(style)
+        background = bg
+        shell.background = bg
         style.applyTranscriptToField(editor)
         editor.getEditor(false)?.let(::chrome)
-        editor.background = style.editorBackground
+        editor.background = bg
         syncEditorHeight()
         syncAutoApprove()
         syncHighlights()
@@ -571,13 +592,6 @@ class PromptPanel(
     fun addAttachmentForTest(item: PromptAttachment) {
         addAttachment(item)
     }
-
-    // custom_change start
-    @RequiresEdt
-    internal fun addAttachments(items: List<PromptAttachment>) {
-        items.forEach { addAttachment(it) }
-    }
-    // custom_change end
 
     internal fun processPasteForTest(transferable: Transferable): Future<*> = processPaste(transferable)
 
@@ -963,6 +977,10 @@ class PromptPanel(
 
     @RequiresEdt
     private fun syncEditorHeight() {
+        if (editor.document.isInBulkUpdate) {
+            deferEditorSync()
+            return
+        }
         val before = editor.preferredSize.height
         val lower = editor.minimumSize.height
         editor.setPreferredSize(null)
@@ -992,6 +1010,19 @@ class PromptPanel(
         editor.minimumSize = Dimension(0, height)
         revalidate()
         repaint()
+    }
+
+    @RequiresEdt
+    private fun deferEditorSync() {
+        if (deferred) return
+        deferred = true
+        ApplicationManager.getApplication().invokeLater {
+            deferred = false
+            if (project.isDisposed || editor.document.isInBulkUpdate) return@invokeLater
+            syncEditorHeight()
+            syncHighlights()
+            syncButton()
+        }
     }
 
     @RequiresEdt
@@ -1097,7 +1128,7 @@ class PromptPanel(
         }
 
         private fun showPopup() {
-            val servers = readMcpTools()
+            val servers = mcpReadTools()
             if (servers.isEmpty()) {
                 com.intellij.notification.Notification(
                     "Kilo Code",
@@ -1107,9 +1138,8 @@ class PromptPanel(
                 return
             }
 
-            val active = readActiveMcp().toMutableSet()
+            val active = mcpReadActive().toMutableSet()
             val allTools = servers.flatMap { it.second }
-
             val listModel = com.intellij.ui.CollectionListModel(allTools.map { it.first })
             val list = com.intellij.ui.components.JBList(listModel)
             list.cellRenderer = McpToolListRenderer(active)
@@ -1132,7 +1162,7 @@ class PromptPanel(
             val btnRow = javax.swing.JPanel(java.awt.FlowLayout(java.awt.FlowLayout.RIGHT))
             val okBtn = javax.swing.JButton("确定")
             okBtn.addActionListener {
-                writeActiveMcp(active.toList())
+                mcpWriteActive(active.toList())
                 com.intellij.notification.Notification(
                     "Kilo Code",
                     "已选择 ${active.size} 个 MCP 工具",
@@ -1156,12 +1186,10 @@ class PromptPanel(
 }
 
 // custom_change start
-private fun mcpCacheDir(): java.io.File {
-    val home = System.getProperty("user.home")
-    return java.io.File("$home/.config/kilo/.cache")
-}
+private fun mcpCacheDir(): java.io.File =
+    java.io.File("${System.getProperty("user.home")}/.config/kilo/.cache")
 
-private fun readMcpTools(): List<Pair<String, List<Pair<String, String>>>> {
+private fun mcpReadTools(): List<Pair<String, List<Pair<String, String>>>> {
     val file = java.io.File(mcpCacheDir(), "mcp-tools.json")
     if (!file.exists()) return emptyList()
     return try {
@@ -1178,7 +1206,7 @@ private fun readMcpTools(): List<Pair<String, List<Pair<String, String>>>> {
     } catch (_: Exception) { emptyList() }
 }
 
-private fun readActiveMcp(): List<String> {
+private fun mcpReadActive(): List<String> {
     val file = java.io.File(mcpCacheDir(), "active-mcp.json")
     if (!file.exists()) return emptyList()
     return try {
@@ -1187,7 +1215,7 @@ private fun readActiveMcp(): List<String> {
     } catch (_: Exception) { emptyList() }
 }
 
-private fun writeActiveMcp(tools: List<String>) {
+private fun mcpWriteActive(tools: List<String>) {
     val dir = mcpCacheDir()
     if (!dir.exists()) dir.mkdirs()
     val data = com.google.gson.JsonObject().apply {
@@ -1207,8 +1235,7 @@ private class McpToolListRenderer(private val active: Set<String>) :
         selected: Boolean,
         hasFocus: Boolean,
     ) {
-        val isActive = active.contains(value)
-        icon = if (isActive) com.intellij.icons.AllIcons.Actions.Checked
+        icon = if (active.contains(value)) com.intellij.icons.AllIcons.Actions.Checked
         else com.intellij.icons.AllIcons.Actions.Cancel
         append(value, com.intellij.ui.SimpleTextAttributes.REGULAR_ATTRIBUTES)
     }

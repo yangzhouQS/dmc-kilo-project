@@ -120,4 +120,12 @@ program
     });
   });
 
+// --- check-protected ---
+program
+  .command('check-protected')
+  .description('Verify all files with custom_change markers are registered in PROTECTED_FILES')
+  .action(() => {
+    import('./commands/check-protected.js');
+  });
+
 program.parse(process.argv);
