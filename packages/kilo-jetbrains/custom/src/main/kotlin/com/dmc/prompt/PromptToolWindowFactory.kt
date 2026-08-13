@@ -30,6 +30,7 @@ import javax.swing.DefaultListModel
 import javax.swing.JButton
 import javax.swing.JComboBox
 import javax.swing.JFileChooser
+import javax.swing.JList
 import javax.swing.JPanel
 import javax.swing.ListSelectionModel
 import javax.swing.SwingConstants
@@ -99,7 +100,7 @@ class PromptMainPanel(private val project: Project) : JPanel(BorderLayout()) {
         formPanel.add(nameField)
 
         categoryCombo.isEditable = true
-        categoryCombo prototypeDisplayValue = "代码生成"
+        categoryCombo.prototypeDisplayValue = "代码生成"
         formPanel.add(JBLabel("分类:").apply { horizontalAlignment = SwingConstants.RIGHT })
         formPanel.add(categoryCombo)
 

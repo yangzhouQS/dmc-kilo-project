@@ -297,6 +297,14 @@ class PromptPanel(
         bar.add(Box.createHorizontalStrut(JBUI.scale(SessionUiStyle.View.Prompt.CONTROL_GAP)))
         bar.add(enhance)
         bar.add(Box.createHorizontalStrut(JBUI.scale(SessionUiStyle.View.Prompt.CONTROL_GAP)))
+        // custom_change
+        try {
+            val cls = Class.forName("com.dmc.prompt.McpSelectorButton")
+            val btn = cls.getConstructor(com.intellij.openapi.project.Project::class.java).newInstance(project) as java.awt.Component
+            bar.add(btn)
+        } catch (_: Exception) {}
+        // /custom_change
+        bar.add(Box.createHorizontalStrut(JBUI.scale(SessionUiStyle.View.Prompt.CONTROL_GAP)))
         bar.add(separator)
         bar.add(Box.createHorizontalStrut(JBUI.scale(SessionUiStyle.View.Prompt.CONTROL_GAP)))
         bar.add(button)
