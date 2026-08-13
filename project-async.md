@@ -156,3 +156,32 @@ npm run scan
 3. **内存不足** — IDE 沙箱 OOM 时先杀残留 Java 进程，堆内存配置在 `.intellijPlatform/ides/IU-2026.1/bin/idea64.exe.vmoptions`
 4. **插件不能与原始 Kilo Code 共存** — 模块名冲突，使用前需卸载原始插件
 5. **首次冷构建** — 需要网络下载 SDK 和 CLI，后续增量构建不需要
+
+
+
+## 本地同步tag
+
+```
+# 1. 扫描标记
+npm run scan
+
+# 2. 同步上游代码到 v7.0.15
+npm run sync -- --tag jetbrains/v7.0.15
+
+# 3. 同步后重新扫描标记
+npm run scan
+
+# 4. 更新插件版本号（7.0.13 → 7.0.15）
+#    编辑 packages/kilo-jetbrains/gradle.properties:
+#    kilo.jetbrains.version=7.0.15
+
+# 5. 检查 CLI pin 是否需要更新
+bun .kilo/skills/release-jetbrains/script/check-pin.ts
+
+# 6. 编译验证
+npm run typecheck
+
+# 7. 如果编译通过，重新构建
+npm run build
+```
+
