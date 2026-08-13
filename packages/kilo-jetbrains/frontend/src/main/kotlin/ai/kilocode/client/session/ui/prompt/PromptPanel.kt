@@ -297,13 +297,9 @@ class PromptPanel(
         bar.add(Box.createHorizontalStrut(JBUI.scale(SessionUiStyle.View.Prompt.CONTROL_GAP)))
         bar.add(enhance)
         bar.add(Box.createHorizontalStrut(JBUI.scale(SessionUiStyle.View.Prompt.CONTROL_GAP)))
-        // custom_change
-        try {
-            val cls = Class.forName("com.dmc.prompt.McpSelectorButton")
-            val btn = cls.getConstructor(com.intellij.openapi.project.Project::class.java).newInstance(project) as java.awt.Component
-            bar.add(btn)
-        } catch (_: Exception) {}
-        // /custom_change
+        // custom_change start
+        bar.add(McpToolbarButton(project))
+        // custom_change end
         bar.add(Box.createHorizontalStrut(JBUI.scale(SessionUiStyle.View.Prompt.CONTROL_GAP)))
         bar.add(separator)
         bar.add(Box.createHorizontalStrut(JBUI.scale(SessionUiStyle.View.Prompt.CONTROL_GAP)))
@@ -1086,4 +1082,135 @@ class PromptPanel(
 
     private inner class AutoApproveButton : PromptButton()
 
+    // custom_change start
+    private class McpToolbarButton(private val project: com.intellij.openapi.project.Project) :
+        javax.swing.JButton() {
+
+        init {
+            icon = com.intellij.icons.AllIcons.Nodes.DataTables
+            toolTipText = "MCP 知识库选择"
+            isFocusPainted = false
+            isContentAreaFilled = false
+            isBorderPainted = false
+            border = com.intellij.util.ui.JBUI.Borders.empty(2)
+            addActionListener { showPopup() }
+        }
+
+        private fun showPopup() {
+            val servers = readMcpTools()
+            if (servers.isEmpty()) {
+                com.intellij.notification.Notification(
+                    "Kilo Code",
+                    "未检测到 MCP 工具。请在 kilo.jsonc 中配置 MCP 服务器并重启会话。",
+                    com.intellij.notification.NotificationType.WARNING,
+                ).notify(project)
+                return
+            }
+
+            val active = readActiveMcp().toMutableSet()
+            val allTools = servers.flatMap { it.second }
+
+            val listModel = com.intellij.ui.CollectionListModel(allTools.map { it.first })
+            val list = com.intellij.ui.components.JBList(listModel)
+            list.cellRenderer = McpToolListRenderer(active)
+            list.selectionMode = javax.swing.ListSelectionModel.SINGLE_SELECTION
+
+            list.addMouseListener(object : java.awt.event.MouseAdapter() {
+                override fun mouseClicked(e: java.awt.event.MouseEvent) {
+                    val row = list.locationToIndex(e.point)
+                    if (row < 0) return
+                    val toolName = listModel.getElementAt(row)
+                    if (active.contains(toolName)) active.remove(toolName) else active.add(toolName)
+                    list.repaint()
+                }
+            })
+
+            val panel = javax.swing.JPanel(java.awt.BorderLayout())
+            panel.add(javax.swing.JLabel("已配置 ${servers.size} 个 MCP 服务器，${allTools.size} 个工具"), java.awt.BorderLayout.NORTH)
+            panel.add(com.intellij.ui.components.JBScrollPane(list), java.awt.BorderLayout.CENTER)
+
+            val btnRow = javax.swing.JPanel(java.awt.FlowLayout(java.awt.FlowLayout.RIGHT))
+            val okBtn = javax.swing.JButton("确定")
+            okBtn.addActionListener {
+                writeActiveMcp(active.toList())
+                com.intellij.notification.Notification(
+                    "Kilo Code",
+                    "已选择 ${active.size} 个 MCP 工具",
+                    com.intellij.notification.NotificationType.INFORMATION,
+                ).notify(project)
+            }
+            btnRow.add(okBtn)
+            panel.add(btnRow, java.awt.BorderLayout.SOUTH)
+
+            com.intellij.openapi.ui.popup.JBPopupFactory.getInstance()
+                .createComponentPopupBuilder(panel, null)
+                .setTitle("MCP 知识库选择")
+                .setResizable(true)
+                .setFocusable(true)
+                .createPopup()
+                .show(com.intellij.ui.awt.RelativePoint.getSouthWestOf(this))
+        }
+    }
+    // custom_change end
+
 }
+
+// custom_change start
+private fun mcpCacheDir(): java.io.File {
+    val home = System.getProperty("user.home")
+    return java.io.File("$home/.config/kilo/.cache")
+}
+
+private fun readMcpTools(): List<Pair<String, List<Pair<String, String>>>> {
+    val file = java.io.File(mcpCacheDir(), "mcp-tools.json")
+    if (!file.exists()) return emptyList()
+    return try {
+        val root = com.google.gson.JsonParser.parseString(file.readText()).asJsonObject
+        root.getAsJsonArray("servers")?.map { serverElem ->
+            val s = serverElem.asJsonObject
+            val name = s.get("name")?.asString ?: ""
+            val tools = s.getAsJsonArray("tools")?.map { t ->
+                val to = t.asJsonObject
+                (to.get("name")?.asString ?: "") to (to.get("description")?.asString ?: "")
+            } ?: emptyList()
+            name to tools
+        } ?: emptyList()
+    } catch (_: Exception) { emptyList() }
+}
+
+private fun readActiveMcp(): List<String> {
+    val file = java.io.File(mcpCacheDir(), "active-mcp.json")
+    if (!file.exists()) return emptyList()
+    return try {
+        val root = com.google.gson.JsonParser.parseString(file.readText()).asJsonObject
+        root.getAsJsonArray("selectedTools")?.map { it.asString } ?: emptyList()
+    } catch (_: Exception) { emptyList() }
+}
+
+private fun writeActiveMcp(tools: List<String>) {
+    val dir = mcpCacheDir()
+    if (!dir.exists()) dir.mkdirs()
+    val data = com.google.gson.JsonObject().apply {
+        addProperty("updatedAt", java.util.Date().toString())
+        add("selectedTools", com.google.gson.JsonArray().apply { tools.forEach { add(it) } })
+        addProperty("instruction", "请优先使用以下工具检索相关信息后再回答")
+    }
+    java.io.File(dir, "active-mcp.json").writeText(com.google.gson.Gson().toJson(data))
+}
+
+private class McpToolListRenderer(private val active: Set<String>) :
+    com.intellij.ui.ColoredListCellRenderer<String>() {
+    override fun customizeCellRenderer(
+        list: javax.swing.JList<out String>,
+        value: String,
+        index: Int,
+        selected: Boolean,
+        hasFocus: Boolean,
+    ) {
+        val isActive = active.contains(value)
+        icon = if (isActive) com.intellij.icons.AllIcons.Actions.Checked
+        else com.intellij.icons.AllIcons.Actions.Cancel
+        append(value, com.intellij.ui.SimpleTextAttributes.REGULAR_ATTRIBUTES)
+    }
+}
+// custom_change end
