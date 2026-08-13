@@ -14,6 +14,11 @@
             anchor="right"
             icon="AllIcons.Toolwindows.ToolWindowDocumentation"
             factoryClass="com.dmc.wiki.WikiToolWindowFactory"/>
+        <toolWindow
+            id="KiloPrompts"
+            anchor="right"
+            icon="AllIcons.Actions.EditSource"
+            factoryClass="com.dmc.prompt.PromptToolWindowFactory"/>
     </extensions>
 
     <actions>
@@ -79,6 +84,15 @@
             description="扫描选中目录代码结构，生成 Wiki 文档"
             icon="AllIcons.Actions.Refresh">
             <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+        </action>
+
+        <action
+            id="com.dmc.SaveCurrentPrompt"
+            class="com.dmc.prompt.SaveCurrentPromptAction"
+            text="收藏提示词"
+            description="收藏当前输入框内容到提示词库"
+            icon="AllIcons.Actions.AddList">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
         </action>
     </actions>
 </idea-plugin>
