@@ -1,153 +1,221 @@
 package com.dmc.tools
 
-import com.google.gson.JsonParser
+import com.dmc.mcp.McpConfigReader
+import com.dmc.mcp.McpToolProbe
+import com.dmc.prompt.McpServerInfo
+import com.dmc.prompt.McpToolCache
+import com.dmc.prompt.McpToolInfo
 import com.intellij.icons.AllIcons
 import com.intellij.notification.Notification
 import com.intellij.notification.NotificationType
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
-import com.intellij.ui.ColoredListCellRenderer
+import com.intellij.ui.ColoredTreeCellRenderer
 import com.intellij.ui.SimpleTextAttributes
-import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
+import com.intellij.ui.treeStructure.Tree
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
 import java.awt.FlowLayout
 import java.io.File
-import javax.swing.DefaultListModel
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.swing.JButton
 import javax.swing.JLabel
-import javax.swing.JList
 import javax.swing.JPanel
-import javax.swing.ListSelectionModel
+import javax.swing.JTree
 import javax.swing.SwingConstants
+import javax.swing.tree.DefaultMutableTreeNode
+import javax.swing.tree.DefaultTreeModel
+import javax.swing.tree.TreeSelectionModel
 
+/**
+ * MCP 工具面板：展示全局/工作区注册的 MCP 服务器及其工具清单。
+ *
+ * 数据源（实时探测，替代旧的 tool.definition 缓存链路）：
+ * kilo.jsonc 的 mcp 段 -> IDE 直连各服务器（stdio / streamable HTTP）执行 tools/list
+ * -> 写入 ~/.config/kilo/.cache/mcp-tools.json 供 McpSelectorButton 等复用。
+ */
 class McpToolsPanel(private val project: Project) : JPanel(BorderLayout()) {
 
-    private data class McpTool(val name: String, val description: String)
-    private data class McpServer(val name: String, val tools: List<McpTool>)
-
-    private val listModel = DefaultListModel<String>()
-    private val toolList = JBList(listModel)
     private val selectedTools = mutableSetOf<String>()
+    private val probing = AtomicBoolean(false)
+    private val statusLabel = JLabel()
+    private var tree: Tree? = null
+    private val emptyPane = JLabel("未加载。点击\"刷新\"探测已注册的 MCP 服务器。", SwingConstants.CENTER)
 
     init {
         border = JBUI.Borders.empty(8)
+        add(JBScrollPane(emptyPane), BorderLayout.CENTER)
 
-        toolList.selectionMode = ListSelectionModel.SINGLE_SELECTION
-        toolList.cellRenderer = McpToolRenderer(selectedTools)
+        val bottomPanel = JPanel(BorderLayout())
+        bottomPanel.add(statusLabel, BorderLayout.CENTER)
+        val buttonRow = JPanel(FlowLayout(FlowLayout.RIGHT))
+        val refreshBtn = JButton("刷新（实时探测）", AllIcons.Actions.Refresh)
+        refreshBtn.addActionListener { refresh() }
+        val saveBtn = JButton("保存选择", AllIcons.Actions.MenuSaveall)
+        saveBtn.addActionListener { saveSelection() }
+        buttonRow.add(refreshBtn)
+        buttonRow.add(saveBtn)
+        bottomPanel.add(buttonRow, BorderLayout.EAST)
+        add(bottomPanel, BorderLayout.SOUTH)
 
-        toolList.addMouseListener(object : java.awt.event.MouseAdapter() {
+        loadFromCache()
+        loadSelection()
+        // 打开面板即自动探测：旧缓存（tool.definition 链路写入的本地工具伪分组）会被立即修正
+        refresh()
+    }
+
+    private fun refresh() {
+        if (!probing.compareAndSet(false, true)) return
+        statusLabel.text = "探测中..."
+        val projectDir = project.basePath?.let { File(it) }
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val configs = McpConfigReader.readServers(projectDir)
+            val results = McpToolProbe.probeAll(configs)
+            val servers = results.map { r ->
+                val fullIdTools = r.tools.map { (name, desc) -> McpToolInfo("${r.server.name}_$name", desc) }
+                McpServerInfo(
+                    name = r.server.name,
+                    tools = fullIdTools,
+                    status = when {
+                        r.error == "disabled" -> "disabled"
+                        r.error != null -> "error"
+                        else -> "ok"
+                    },
+                    error = if (r.error == "disabled") "" else (r.error ?: ""),
+                )
+            }
+            McpToolCache.writeTools(servers)
+            ApplicationManager.getApplication().invokeLater {
+                probing.set(false)
+                renderServers(servers)
+                val okCount = servers.count { it.status == "ok" }
+                val toolCount = servers.sumOf { it.tools.size }
+                statusLabel.text = "${okCount}/${servers.size} 个服务器在线，共 ${toolCount} 个工具"
+            }
+        }
+    }
+
+    private fun loadFromCache() {
+        renderServers(McpToolCache.readTools())
+    }
+
+    private fun renderServers(servers: List<McpServerInfo>) {
+        if (servers.isEmpty()) {
+            removeAll()
+            add(JBScrollPane(emptyPane), BorderLayout.CENTER)
+            revalidate()
+            repaint()
+            return
+        }
+        val root = DefaultMutableTreeNode("MCP 服务器")
+        for (server in servers) {
+            val serverNode = DefaultMutableTreeNode(server)
+            for (tool in server.tools) {
+                serverNode.add(DefaultMutableTreeNode(tool))
+            }
+            root.add(serverNode)
+        }
+        val newTree = Tree(DefaultTreeModel(root))
+        newTree.selectionModel.selectionMode = TreeSelectionModel.SINGLE_TREE_SELECTION
+        newTree.cellRenderer = McpToolRenderer(selectedTools)
+        newTree.addMouseListener(object : java.awt.event.MouseAdapter() {
             override fun mouseClicked(e: java.awt.event.MouseEvent) {
-                val row = toolList.locationToIndex(e.point)
-                if (row < 0) return
-                val toolName = listModel.getElementAt(row)
-                if (selectedTools.contains(toolName)) selectedTools.remove(toolName)
-                else selectedTools.add(toolName)
-                toolList.repaint()
+                val path = newTree.getPathForLocation(e.x, e.y) ?: return
+                val node = path.lastPathComponent as? DefaultMutableTreeNode ?: return
+                val tool = node.userObject as? McpToolInfo ?: return
+                if (selectedTools.contains(tool.name)) selectedTools.remove(tool.name) else selectedTools.add(tool.name)
+                newTree.repaint()
             }
         })
 
-        val scrollPane = JBScrollPane(toolList)
-        add(scrollPane, BorderLayout.CENTER)
-
-        val bottomPanel = JPanel(FlowLayout(FlowLayout.RIGHT))
-        val refreshBtn = JButton("刷新", AllIcons.Actions.Refresh)
-        refreshBtn.addActionListener { loadTools() }
+        removeAll()
+        add(JBScrollPane(newTree), BorderLayout.CENTER)
+        // 底部按钮栏需要重新挂载（removeAll 清掉了）
+        val bottomPanel = JPanel(BorderLayout())
+        bottomPanel.add(statusLabel, BorderLayout.CENTER)
+        val buttonRow = JPanel(FlowLayout(FlowLayout.RIGHT))
+        val refreshBtn = JButton("刷新（实时探测）", AllIcons.Actions.Refresh)
+        refreshBtn.addActionListener { refresh() }
         val saveBtn = JButton("保存选择", AllIcons.Actions.MenuSaveall)
         saveBtn.addActionListener { saveSelection() }
-        bottomPanel.add(refreshBtn)
-        bottomPanel.add(saveBtn)
+        buttonRow.add(refreshBtn)
+        buttonRow.add(saveBtn)
+        bottomPanel.add(buttonRow, BorderLayout.EAST)
         add(bottomPanel, BorderLayout.SOUTH)
 
-        loadTools()
-        loadSelection()
-    }
-
-    private fun loadTools() {
-        listModel.clear()
-        val servers = readMcpServers()
-        for (server in servers) {
-            for (tool in server.tools) {
-                listModel.addElement(tool.name)
-            }
-        }
-        if (listModel.isEmpty()) {
-            toolList.emptyText.text = "未检测到 MCP 工具。发送一条消息触发 CLI 工具发现。"
-        }
+        tree = newTree
+        revalidate()
+        repaint()
     }
 
     private fun loadSelection() {
-        val file = File(cacheDir(), "active-mcp.json")
-        if (!file.exists()) return
-        try {
-            val root = JsonParser.parseString(file.readText()).asJsonObject
-            root.getAsJsonArray("selectedTools")?.forEach { elem ->
-                selectedTools.add(elem.asString)
-            }
-        } catch (_: Exception) {}
+        val active = McpToolCache.readActive() ?: return
+        selectedTools.addAll(active.selectedTools)
     }
 
     private fun saveSelection() {
-        val dir = cacheDir()
-        if (!dir.exists()) dir.mkdirs()
-
         val tools = selectedTools.toList()
         if (tools.isEmpty()) {
-            File(dir, "active-mcp.json").delete()
+            McpToolCache.clearActive()
         } else {
-            val data = com.google.gson.JsonObject().apply {
-                addProperty("updatedAt", java.util.Date().toString())
-                add("selectedTools", com.google.gson.JsonArray().apply { tools.forEach { add(it) } })
-                addProperty("instruction", "请优先使用以下工具检索相关信息后再回答")
-            }
-            File(dir, "active-mcp.json").writeText(com.google.gson.Gson().toJson(data))
+            McpToolCache.writeActive(tools, "请优先使用以下工具检索相关信息后再回答")
         }
-
         Notification(
             "Kilo Code",
             "已${if (tools.isEmpty()) "清除" else "保存"} ${tools.size} 个 MCP 工具选择",
             NotificationType.INFORMATION,
         ).notify(project)
     }
-
-    private fun cacheDir(): File {
-        val home = System.getProperty("user.home")
-        return File("$home/.config/kilo/.cache")
-    }
-
-    private fun readMcpServers(): List<McpServer> {
-        val file = File(cacheDir(), "mcp-tools.json")
-        if (!file.exists()) return emptyList()
-        return try {
-            val root = JsonParser.parseString(file.readText()).asJsonObject
-            root.getAsJsonArray("servers")?.map { serverElem ->
-                val s = serverElem.asJsonObject
-                McpServer(
-                    name = s.get("name")?.asString ?: "",
-                    tools = s.getAsJsonArray("tools")?.map { t ->
-                        val to = t.asJsonObject
-                        McpTool(
-                            name = to.get("name")?.asString ?: "",
-                            description = to.get("description")?.asString ?: "",
-                        )
-                    } ?: emptyList(),
-                )
-            } ?: emptyList()
-        } catch (_: Exception) { emptyList() }
-    }
 }
 
 private class McpToolRenderer(private val selected: Set<String>) :
-    ColoredListCellRenderer<String>() {
+    ColoredTreeCellRenderer() {
     override fun customizeCellRenderer(
-        list: JList<out String>,
-        value: String,
-        index: Int,
-        isSelected: Boolean,
+        tree: JTree,
+        value: Any,
+        selected: Boolean,
+        expanded: Boolean,
+        leaf: Boolean,
+        row: Int,
         hasFocus: Boolean,
     ) {
-        border = JBUI.Borders.empty(6, 8)
-        icon = if (this.selected.contains(value)) AllIcons.Actions.Checked else AllIcons.Actions.Cancel
-        append(value, SimpleTextAttributes.REGULAR_ATTRIBUTES)
+        val node = value as? DefaultMutableTreeNode ?: return
+        when (val obj = node.userObject) {
+            is McpServerInfo -> {
+                when (obj.status) {
+                    "ok" -> {
+                        icon = AllIcons.Nodes.Folder
+                        append(obj.name, SimpleTextAttributes.REGULAR_BOLD_ATTRIBUTES)
+                        append("  (${obj.tools.size} 工具)", SimpleTextAttributes.GRAYED_ATTRIBUTES)
+                    }
+                    "disabled" -> {
+                        icon = AllIcons.Nodes.Folder
+                        append(obj.name, SimpleTextAttributes.GRAYED_ATTRIBUTES)
+                        append("  已禁用", SimpleTextAttributes.GRAYED_ATTRIBUTES)
+                    }
+                    else -> {
+                        icon = AllIcons.Nodes.Folder
+                        append(obj.name, SimpleTextAttributes.REGULAR_BOLD_ATTRIBUTES)
+                        append("  连接失败", SimpleTextAttributes.ERROR_ATTRIBUTES)
+                        if (obj.error.isNotEmpty()) {
+                            append("  ${obj.error}", SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES)
+                        }
+                    }
+                }
+            }
+            is McpToolInfo -> {
+                val isChecked = this.selected.contains(obj.name)
+                icon = if (isChecked) AllIcons.Actions.Checked else AllIcons.Actions.Cancel
+                append(obj.name, SimpleTextAttributes.REGULAR_ATTRIBUTES)
+                if (obj.description.isNotEmpty()) {
+                    append("  — ${obj.description.lineSequence().first()}", SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES)
+                }
+            }
+            is String -> {
+                icon = AllIcons.Nodes.DataTables
+                append(obj, SimpleTextAttributes.REGULAR_ATTRIBUTES)
+            }
+        }
     }
 }

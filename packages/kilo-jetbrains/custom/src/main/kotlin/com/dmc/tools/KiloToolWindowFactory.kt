@@ -1,20 +1,15 @@
 package com.dmc.tools
 
 import com.dmc.prompt.PromptMainPanel
-import com.dmc.wiki.KnowledgeCardPanel
-import com.dmc.wiki.MemoryPanel
-import com.dmc.wiki.WikiBrowserPanel
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
-import com.intellij.ui.JBSplitter
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
 import java.awt.CardLayout
-import java.awt.Dimension
 import javax.swing.DefaultListModel
 import javax.swing.JLabel
 import javax.swing.JList
@@ -37,7 +32,7 @@ class KiloToolsPanel(project: Project) : JPanel(BorderLayout()) {
     private data class NavItem(
         val label: String,
         val icon: javax.swing.Icon,
-        val panelSupplier: () -> JPanel,
+        val panelSupplier: () -> java.awt.Component,
     )
 
     private val cardLayout = CardLayout()
@@ -48,12 +43,10 @@ class KiloToolsPanel(project: Project) : JPanel(BorderLayout()) {
         border = JBUI.Borders.empty()
 
         val navItems = listOf(
-            NavItem("Wiki 文档", AllIcons.FileTypes.Text) { WikiBrowserPanel(project) },
-            NavItem("知识卡片", AllIcons.Nodes.Folder) { KnowledgeCardPanel(project) },
-            NavItem("记忆", AllIcons.Actions.Preview) { MemoryPanel(project) },
+            NavItem("知识库", AllIcons.Nodes.Folder) { WikiTabsPanel(project) },
             NavItem("提示词库", AllIcons.Actions.EditSource) { PromptMainPanel(project) },
             NavItem("MCP 工具", AllIcons.Nodes.DataTables) { McpToolsPanel(project) },
-            NavItem("JSON→TS", AllIcons.FileTypes.Json) { JsonToTsPanel() },
+            NavItem("jsonToTs", AllIcons.FileTypes.Json) { JsonToTsPanel() },
         )
 
         navItems.forEach { item ->
@@ -75,7 +68,7 @@ class KiloToolsPanel(project: Project) : JPanel(BorderLayout()) {
 
         val navPanel = JPanel(BorderLayout())
         navPanel.border = JBUI.Borders.emptyRight(1)
-        navPanel.preferredSize = Dimension(150, 0)
+        navPanel.preferredSize = JBUI.size(140, 0)
 
         val titleLabel = JLabel("Kilo 工具")
         titleLabel.border = JBUI.Borders.empty(8, 10)
@@ -83,11 +76,8 @@ class KiloToolsPanel(project: Project) : JPanel(BorderLayout()) {
         navPanel.add(titleLabel, BorderLayout.NORTH)
         navPanel.add(JBScrollPane(navList), BorderLayout.CENTER)
 
-        val splitter = JBSplitter(false, 0.16f)
-        splitter.firstComponent = navPanel
-        splitter.secondComponent = contentPanel
-
-        add(splitter, BorderLayout.CENTER)
+        add(navPanel, BorderLayout.WEST)
+        add(contentPanel, BorderLayout.CENTER)
     }
 
     private class NavItemRenderer : ListCellRenderer<NavItem> {

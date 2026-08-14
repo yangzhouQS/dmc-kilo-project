@@ -114,8 +114,10 @@ class PromptMainPanel(private val project: Project) : JPanel(BorderLayout()) {
         bottomButtons.add(createButton("插入到 Kilo", AllIcons.Actions.Forward) { insertToKilo() })
         rightPanel.add(bottomButtons, BorderLayout.SOUTH)
 
-        // 分割
-        val splitter = JBSplitter(false, 0.38f)
+        // 分割：左侧默认 30%，可拖拽（15%~85%）
+        // 按钮栏为 FlowLayout，其最小宽度会钳制 Splitter 导致无法拖动，故关闭最小尺寸钳制
+        val splitter = JBSplitter(false, 0.3f, 0.15f, 0.85f)
+        splitter.setHonorComponentsMinimumSize(false)
         splitter.firstComponent = leftPanel
         splitter.secondComponent = rightPanel
         add(splitter, BorderLayout.CENTER)
