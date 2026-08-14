@@ -16,7 +16,7 @@ import javax.swing.JPanel
 import javax.swing.ListSelectionModel
 import javax.swing.SwingUtilities
 
-class MemoryPanel(private val project: Project) : JPanel(BorderLayout()), WikiToolWindowFactory.Refreshable {
+class MemoryPanel(private val project: Project) : JPanel(BorderLayout()), Refreshable {
 
     private val listModel = DefaultListModel<String>()
     private val fileList = mutableListOf<File>()

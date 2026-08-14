@@ -17,7 +17,7 @@ import javax.swing.event.ListSelectionListener
 
 private val LOG = logger<WikiBrowserPanel>()
 
-class WikiBrowserPanel(private val project: Project) : JPanel(BorderLayout()), WikiToolWindowFactory.Refreshable {
+class WikiBrowserPanel(private val project: Project) : JPanel(BorderLayout()), Refreshable {
 
     private val listModel = DefaultListModel<String>()
     private val fileList = mutableListOf<File>()

@@ -1,14 +1,10 @@
 package com.dmc.prompt
 
-import com.dmc.bridge.DmcSessionResolver
 import com.intellij.icons.AllIcons
 import com.intellij.notification.Notification
 import com.intellij.notification.NotificationType
-import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
-import com.intellij.openapi.wm.ToolWindow
-import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.ui.ColoredListCellRenderer
 import com.intellij.ui.JBSplitter
 import com.intellij.ui.SimpleTextAttributes
@@ -34,15 +30,6 @@ import javax.swing.JList
 import javax.swing.JPanel
 import javax.swing.ListSelectionModel
 import javax.swing.SwingConstants
-
-class PromptToolWindowFactory : ToolWindowFactory, DumbAware {
-
-    override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
-        val panel = PromptMainPanel(project)
-        val content = com.intellij.ui.content.ContentFactory.getInstance().createContent(panel, "", false)
-        toolWindow.contentManager.addContent(content)
-    }
-}
 
 class PromptMainPanel(private val project: Project) : JPanel(BorderLayout()) {
 

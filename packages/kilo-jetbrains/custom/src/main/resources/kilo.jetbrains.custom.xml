@@ -10,15 +10,10 @@
 
     <extensions defaultExtensionNs="com.intellij">
         <toolWindow
-            id="KiloWiki"
+            id="KiloTools"
             anchor="right"
-            icon="AllIcons.Toolwindows.ToolWindowDocumentation"
-            factoryClass="com.dmc.wiki.WikiToolWindowFactory"/>
-        <toolWindow
-            id="KiloPrompts"
-            anchor="right"
-            icon="AllIcons.Actions.EditSource"
-            factoryClass="com.dmc.prompt.PromptToolWindowFactory"/>
+            icon="AllIcons.Toolwindows.ToolWindowToolset"
+            factoryClass="com.dmc.tools.KiloToolWindowFactory"/>
     </extensions>
 
     <actions>

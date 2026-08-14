@@ -12,7 +12,7 @@ import javax.swing.DefaultListModel
 import javax.swing.JPanel
 import javax.swing.ListSelectionModel
 
-class KnowledgeCardPanel(private val project: Project) : JPanel(BorderLayout()), WikiToolWindowFactory.Refreshable {
+class KnowledgeCardPanel(private val project: Project) : JPanel(BorderLayout()), Refreshable {
 
     private val listModel = DefaultListModel<String>()
     private val fileList = mutableListOf<File>()
