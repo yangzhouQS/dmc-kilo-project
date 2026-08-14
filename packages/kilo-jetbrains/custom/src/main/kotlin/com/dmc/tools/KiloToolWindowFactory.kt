@@ -53,6 +53,7 @@ class KiloToolsPanel(project: Project) : JPanel(BorderLayout()) {
             NavItem("记忆", AllIcons.Actions.Preview) { MemoryPanel(project) },
             NavItem("提示词库", AllIcons.Actions.EditSource) { PromptMainPanel(project) },
             NavItem("MCP 工具", AllIcons.Nodes.DataTables) { McpToolsPanel(project) },
+            NavItem("JSON→TS", AllIcons.FileTypes.Json) { JsonToTsPanel() },
         )
 
         navItems.forEach { item ->
@@ -76,7 +77,7 @@ class KiloToolsPanel(project: Project) : JPanel(BorderLayout()) {
         navPanel.border = JBUI.Borders.emptyRight(1)
         navPanel.preferredSize = Dimension(150, 0)
 
-        val titleLabel = JLabel("Kilo 工具", AllIcons.Toolwindows.ToolWindowToolset, SwingConstants.LEFT)
+        val titleLabel = JLabel("Kilo 工具")
         titleLabel.border = JBUI.Borders.empty(8, 10)
         titleLabel.font = titleLabel.font.deriveFont(java.awt.Font.BOLD, titleLabel.font.size + 1f)
         navPanel.add(titleLabel, BorderLayout.NORTH)

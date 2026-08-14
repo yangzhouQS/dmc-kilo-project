@@ -1,5 +1,6 @@
 package com.dmc.prompt
 
+import com.dmc.bridge.DmcSessionResolver
 import com.intellij.icons.AllIcons
 import com.intellij.notification.Notification
 import com.intellij.notification.NotificationType
